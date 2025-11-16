@@ -36,6 +36,9 @@ loki-ids/
 │  ├─ gen_test_traffic.sh
 │  └─ check_env.sh
 
+├─ Web-Interface/
+│  └─ .gitkeep
+
 ├─ systemd/
 │  └─ loki.service
 
@@ -79,7 +82,7 @@ Reference the **Task ID** in your pull request branch names (e.g., `feature/T3-n
 | **T6** | Detection      | Implement port-scan detector (sliding window per-IP)         | ⚪ Todo |
 | **T7** | Detection      | Implement rate-limit / DoS detection                          | ⚪ Todo |
 | **T8** | Logging        | Implement JSONL logging system (`logger.py`)                 | ⚪ Todo |
-| **T9** | API            | Build REST API for blacklist management & stats (Flask)      | ⚪ Todo |
+| **T9** | API & web interface           | Build REST API for blacklist management & stats (Flask)      | ⚪ Todo |
 | **T10** | Documentation | Write NFQUEUE design doc (`docs/03_ids_nfqueue.md`)          | ⚪ Todo |
 | **T11** | Testing       | Build test suite with `nmap` / `hping3` scripted attacks     | ⚪ Todo |
 | **T12** | Packaging     | Add `systemd` service (`loki.service`) for Pi autostart      | ⚪ Todo |
