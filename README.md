@@ -12,7 +12,7 @@ loki-ids/
 │  ├─ config.yaml
 │  └─ policy.yaml
 
-├─ ids/
+├─ Core/
 │  ├─ loki/
 │  │  ├─ nfqueue_app.py
 │  │  ├─ packet_parser.py
