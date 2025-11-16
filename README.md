@@ -71,9 +71,9 @@ Reference the **Task ID** in your pull request branch names (e.g., `feature/T3-n
 
 | ID | Category        | Task Description                                           | Status |
 |----|-----------------|-------------------------------------------------------------|--------|
-| **T1** | Setup          | Create and test `install_deps.sh` (apt + pip packages)       | 🟢 Done / Verify |
-| **T2** | Setup          | Write `iptables_up.sh` and `iptables_down.sh`                | 🟡 In Progress |
-| **T3** | Core IDS       | Implement NFQUEUE consumer loop (`nfqueue_app.py`)           | 🟡 In Progress |
+| **T1** | Setup          | Create and test `install_deps.sh` (apt + pip packages)       | 🟢 Done / Verify (Omar)|
+| **T2** | Setup          | Write `iptables_up.sh` and `iptables_down.sh`                | 🟡 In Progress (Omar)|
+| **T3** | Core IDS       | Implement NFQUEUE consumer loop (`nfqueue_app.py`)           | 🟡 In Progress (Omar)|
 | **T4** | Core IDS       | Implement packet parsing layer (`packet_parser.py` / Scapy)  | ⚪ Todo |
 | **T5** | Detection      | Implement signature-based detection (blacklist lookup)       | ⚪ Todo |
 | **T6** | Detection      | Implement port-scan detector (sliding window per-IP)         | ⚪ Todo |
