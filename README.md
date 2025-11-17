@@ -86,7 +86,6 @@ Reference the **Task ID** in your pull request branch names (e.g., `feature/T3-n
 | **T11** | Testing       | Build test suite with `nmap` / `hping3` scripted attacks     | ⚪ Todo |
 | **T12** | Packaging     | Add `systemd` service (`loki.service`) for Pi autostart      | ⚪ Todo |
 | **T13** | Kernel (Next) | Prototype XDP/eBPF fast-path (`kernel/xdp_filter.c`)         | 🔵 Planned |
-| **T14** | CI/CD         | Add GitHub Actions: linting, unit tests                      | 🔵 Planned |
 
 ---
 
