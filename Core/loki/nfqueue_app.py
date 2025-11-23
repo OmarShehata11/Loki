@@ -1,39 +1,20 @@
 from netfilterqueue import NetfilterQueue
 import threading
 import time
-import datetime
-from scapy.all import IP, TCP, UDP
-
+from packet_parser import scan_packet
 
 def process_packet(packet, IsInput):
     if IsInput:
         # now we are working in the input chain packet..
-        pkt = IP(packet.get_payload()) # get the IP layer (it may have none if it's ICMP)..
-        
-        src_ip = pkt[IP].src
-        dst_ip = pkt[IP].dst
-        timestamp = packet.get_timestamp()
-        packetID = packet.id
-        payloadLen = packet.get_payload_len()
-        dst_port = 0 # just in case that the packet has no TCP or UDP port.
-        src_port = 0
-
-        if pkt.haslayer(TCP) : 
-            dst_port = pkt[TCP].dport
-            src_port = pkt[TCP].sport
-
-        elif pkt.haslayer(UDP) : 
-            dst_port = pkt[UDP].dport
-            src_port = pkt[UDP].sport
-
-        # let's calculate the timestampppp::
-        #finalTimeStamp = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-        finalTimeStamp = datetime.datetime.fromtimestamp(timestamp, datetime.UTC).strftime('%Y-%m-%d %H:%M:%S')
+        packetInfo = scan_packet(packet)
 
         print(" *** Data Captured from INPUT chain ***")
         print()
 
-        print(f" Source IP: {src_ip}\n Dest Ip {dst_ip}\n timestamp: {finalTimeStamp}\n PacketID: {packetID}\n Payload Len: {payloadLen}\n Dst port: {dst_port}\n src port: {src_port}\n")
+        print(f" Source IP: {packetInfo.get("src_ip")}\n Dest Ip {packetInfo.get("dst_ip")}\n timestamp: {packetInfo.get("finalTimeStamp")}\n PacketID: {packetInfo.get("packetID")}\n Payload Len: {packetInfo.get("payloadLen")}\n Dst port: {packetInfo.get("dst_port")}\n src port: {packetInfo.get("src_port")}\n TCP or UDP: {packetInfo.get("port")}\n")
+        
+        #print("the data are: ")
+        #print(packetInfo)
 
         # then just accept it:
         packet.accept()
