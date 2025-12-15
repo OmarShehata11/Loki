@@ -33,7 +33,8 @@ def scan_packet(packet):
             "payloadLen" : payloadLen,
             "src_port" : src_port,
             "dst_port" : dst_port,
-            "port" : port
+            "port" : port,
+            "rawts" : timestamp
             }
     return Result # finaly returning the dictionary..
     

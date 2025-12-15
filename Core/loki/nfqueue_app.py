@@ -2,8 +2,9 @@ from netfilterqueue import NetfilterQueue
 import threading
 import time
 from packet_parser import scan_packet
+from detectore_engine import PortScanningDetector
 
-def process_packet(packet, IsInput):
+def process_packet(packet, IsInput, port_scanner):
     if IsInput:
         # now we are working in the input chain packet..
         packetInfo = scan_packet(packet)
@@ -15,6 +16,11 @@ def process_packet(packet, IsInput):
         
         #print("the data are: ")
         #print(packetInfo)
+
+        # let's now try to analyze it with the port scanner:
+        analyze_result = port_scanner.analyze_packet(packetInfo.get("src_ip"), packetInfo.get("rawts"), packetInfo.get("dst_port"))
+        
+        print(f"the analyze result is : {analyze_result}")
 
         # then just accept it:
         packet.accept()
@@ -29,7 +35,8 @@ def process_packet(packet, IsInput):
 
 def forward_agent():
     nfq = NetfilterQueue()
-    nfq.bind(200, lambda packet: process_packet(packet, False))
+    port_scanner_object_forward = PortScanningDetector(10, 10)
+    nfq.bind(200, lambda packet: process_packet(packet, False, port_scanner_object_forward))
 
     try:
         nfq.run()
@@ -39,7 +46,8 @@ def forward_agent():
 
 def input_agent():
     nfq = NetfilterQueue()
-    nfq.bind(100, lambda packet: process_packet(packet, True))
+    port_scanner_object_input = PortScanningDetector(10, 10)
+    nfq.bind(100, lambda packet: process_packet(packet, True, port_scanner_object_input))
     
     try:
         nfq.run()
