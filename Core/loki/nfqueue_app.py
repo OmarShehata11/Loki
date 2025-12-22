@@ -3,7 +3,8 @@ import threading
 import time
 from packet_parser import scan_packet
 from detectore_engine import PortScanningDetector
-
+from signature_engine import SignatureScanning
+from scapy.all import IP, Raw
 def process_packet(packet, IsInput, port_scanner):
     if IsInput:
         # now we are working in the input chain packet..
@@ -21,6 +22,17 @@ def process_packet(packet, IsInput, port_scanner):
         analyze_result = port_scanner.analyze_packet(packetInfo.get("src_ip"), packetInfo.get("rawts"), packetInfo.get("dst_port"))
         
         print(f"the analyze result is : {analyze_result}")
+
+        # let's now test the signature based scanning..
+        SigScanning = SignatureScanning()
+        ip_layer = IP(packet.get_payload())
+        if ip_layer.haslayer(Raw):
+            print("packet has a Raw layer..")
+            RawData = ip_layer[Raw].load
+            RuleID, RuleDesc, Drop = SigScanning.CheckPacketPayload(RawData)
+            print(f"Rule ID: {RuleID}, Rule Description: {RuleDesc}, Drop: {Drop}")
+        else:
+            print("the packet has no Raw Layer..***********")
 
         # then just accept it:
         packet.accept()
