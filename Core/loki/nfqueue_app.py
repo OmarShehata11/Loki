@@ -5,7 +5,10 @@ from packet_parser import scan_packet
 from detectore_engine import PortScanningDetector
 from signature_engine import SignatureScanning
 from scapy.all import IP, Raw
-def process_packet(packet, IsInput, port_scanner):
+
+
+
+def process_packet(packet, IsInput, port_scanner, sig_scanner):
     if IsInput:
         # now we are working in the input chain packet..
         packetInfo = scan_packet(packet)
@@ -24,13 +27,12 @@ def process_packet(packet, IsInput, port_scanner):
         print(f"the analyze result is : {analyze_result}")
 
         # let's now test the signature based scanning..
-        SigScanning = SignatureScanning()
         ip_layer = IP(packet.get_payload())
         if ip_layer.haslayer(Raw):
             print("packet has a Raw layer..")
             RawData = ip_layer[Raw].load
-            RuleID, RuleDesc, Drop = SigScanning.CheckPacketPayload(RawData)
-            print(f"Rule ID: {RuleID}, Rule Description: {RuleDesc}, Drop: {Drop}")
+            RuleName, RulePattern, Drop = sig_scanner.CheckPacketPayload(RawData)
+            print(f"Rule Name: {RuleName}, Rule Pattern: {RulePattern}, Drop: {Drop}")
         else:
             print("the packet has no Raw Layer..***********")
 
@@ -45,22 +47,24 @@ def process_packet(packet, IsInput, port_scanner):
 
         packet.accept()
 
-def forward_agent():
+def forward_agent(sig_object):
     nfq = NetfilterQueue()
     port_scanner_object_forward = PortScanningDetector(10, 10)
-    nfq.bind(200, lambda packet: process_packet(packet, False, port_scanner_object_forward))
+    nfq.bind(200, lambda packet: process_packet(packet, False, port_scanner_object_forward, sig_object))
 
     try:
         nfq.run()
+
     except Exception as e:
         print(f"[!] forward agent crashed: {e}")
 
 
-def input_agent():
+def input_agent(sig_object):
     nfq = NetfilterQueue()
     port_scanner_object_input = PortScanningDetector(10, 10)
-    nfq.bind(100, lambda packet: process_packet(packet, True, port_scanner_object_input))
-    
+    #sig_scanner_object_input = SignatureScanning()
+    nfq.bind(100, lambda packet: process_packet(packet, True, port_scanner_object_input, sig_object))
+        
     try:
         nfq.run()
     
@@ -73,8 +77,9 @@ if __name__ == "__main__":
     print()
     
     # let's now create the 2 threads..
-    input_thread= threading.Thread(target=input_agent, daemon=True)
-    forward_thread= threading.Thread(target=forward_agent, daemon= True)
+    sig_object = SignatureScanning()
+    input_thread= threading.Thread(target=input_agent, args=(sig_object,), daemon=True)
+    forward_thread= threading.Thread(target=forward_agent, args=(sig_object,), daemon= True)
 
 
     # now let's start it:::
