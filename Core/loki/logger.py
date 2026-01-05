@@ -8,7 +8,11 @@ class LokiLogger:
     Handles logging of IDS alerts to both console and a structured JSONL file.
     """
     def __init__(self, log_dir="logs", filename="loki_alerts.jsonl"):
-        self.log_dir = log_dir
+        
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        self.log_dir = os.path.join(project_root, log_dir)
+        
         self.filename = filename
         self.filepath = os.path.join(self.log_dir, self.filename)
         
