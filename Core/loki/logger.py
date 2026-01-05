@@ -18,8 +18,12 @@ class LokiLogger:
         
         # Ensure log directory exists
         if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
-            
+            try:
+                os.makedirs(self.log_dir)
+            except Exception as e:
+                logger.console_logger.critical(f"[!] couldn't create the log directory: {e}")
+                self.log_dir = current_dir # I will just work on the current director.
+
         # Setup Python's built-in logging for console output
         self.console_logger = logging.getLogger("LokiIDS")
         self.console_logger.setLevel(logging.INFO)
