@@ -86,7 +86,8 @@
             <div class="action-bar">
                 <button onclick="showAddSignatureModal()">+ Add Signature</button>
                 <button onclick="reloadIDSSignatures()">Reload IDS Signatures</button>
-                <button onclick="reloadSignatures()">Import from YAML</button>
+                <button onclick="document.getElementById('yamlFileInput').click()">Import from YAML</button>
+                <input type="file" id="yamlFileInput" accept=".yaml,.yml" style="display: none;" onchange="handleYamlFileUpload(event)">
             </div>
             <div id="signaturesList"></div>
         </div>

@@ -355,18 +355,52 @@ async function deleteSignature(id) {
     }
 }
 
-async function reloadSignatures() {
-    if (!confirm('Import signatures from YAML file to database? This will load YAML signatures into the database.')) return;
+async function handleYamlFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml')) {
+        alert('Please select a YAML file (.yaml or .yml)');
+        event.target.value = ''; // Reset file input
+        return;
+    }
+    
+    if (!confirm(`Import signatures from ${file.name} to database? This will load YAML signatures into the database.`)) {
+        event.target.value = ''; // Reset file input
+        return;
+    }
     
     try {
-        const res = await fetch(`${API_BASE}/signatures/reload`, { method: 'POST' });
+        // Create FormData and append file
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const res = await fetch(`${API_BASE}/signatures/reload`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || 'Failed to import signatures');
+        }
+        
         const data = await res.json();
-        alert(`Imported ${data.count} signatures from YAML file to database`);
+        alert(`Successfully imported ${data.count} signatures from ${data.filename || file.name} to database`);
         loadSignatures();
     } catch (error) {
-        console.error('Error reloading signatures:', error);
-        alert('Error reloading signatures');
+        console.error('Error importing signatures:', error);
+        alert(`Error importing signatures: ${error.message}`);
+    } finally {
+        // Reset file input
+        event.target.value = '';
     }
+}
+
+async function reloadSignatures() {
+    // This function is kept for backward compatibility but now triggers file input
+    document.getElementById('yamlFileInput').click();
 }
 
 async function reloadIDSSignatures() {

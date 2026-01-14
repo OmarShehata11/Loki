@@ -1,11 +1,10 @@
 """
 Signature management endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import yaml
-import os
 
 from ..models.database import get_db
 from ..models.schemas import (
@@ -131,31 +130,55 @@ async def delete_signature(
 
 @router.post("/reload")
 async def reload_signatures(
-    yaml_file: str = None,
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Reload signatures from YAML file to database.
+    Reload signatures from uploaded YAML file to database.
     This syncs YAML file -> database.
+    Requires a YAML file to be uploaded.
     """
-    # Get default YAML file path
-    if not yaml_file:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
-        yaml_file = os.path.join(project_root, "Configs", "test_yaml_file.yaml")
-    
-    if not os.path.exists(yaml_file):
-        raise HTTPException(status_code=404, detail=f"YAML file not found: {yaml_file}")
-    
     try:
-        from integration.signature_manager import signature_manager
-        signature_manager.yaml_file_path = yaml_file
-        loaded_count = await signature_manager.sync_yaml_to_db_async()
+        # Read uploaded file content
+        content = await file.read()
+        yaml_content = content.decode('utf-8')
+        
+        # Parse YAML
+        all_rules = yaml.safe_load(yaml_content)
+        signatures = all_rules.get('signatures', [])
+        
+        # Import signatures directly to database
+        loaded_count = 0
+        for sig_data in signatures:
+            existing = await crud.get_signature_by_name(db, sig_data['name'])
+            if existing:
+                # Update existing
+                await crud.update_signature(db, existing.id, {
+                    'pattern': sig_data['pattern'],
+                    'action': sig_data.get('action', 'alert'),
+                    'description': sig_data.get('description', ''),
+                    'enabled': 1
+                })
+            else:
+                # Create new
+                await crud.create_signature(db, {
+                    'name': sig_data['name'],
+                    'pattern': sig_data['pattern'],
+                    'action': sig_data.get('action', 'alert'),
+                    'description': sig_data.get('description', ''),
+                    'enabled': 1
+                })
+            loaded_count += 1
+        
+        await db.commit()
         
         return {
-            "message": f"Reloaded {loaded_count} signatures from {yaml_file}",
-            "count": loaded_count
+            "message": f"Imported {loaded_count} signatures from uploaded YAML file",
+            "count": loaded_count,
+            "filename": file.filename
         }
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML file: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reloading signatures: {str(e)}")
 
