@@ -16,15 +16,31 @@ A lightweight web dashboard for managing and monitoring the Loki Intrusion Detec
 
 ### 1. Setup Environment
 
+**For Python 3.13.5 (Raspberry Pi 5):**
 ```bash
-cd /home/zaher/Loki-IDS/Web-Interface
+cd /Loki-IDS/Web-Interface
+
+# Create virtual environment with Python 3.13.5
+python3.13 -m venv venv
+
+# Install dependencies
+venv/bin/pip install --upgrade pip
+venv/bin/pip install -r requirements.txt
+```
+
+**For other Python versions:**
+```bash
+cd /Loki-IDS/Web-Interface
 
 # Create virtual environment
 env -i PATH=/usr/bin:/bin /usr/bin/python3 -m venv venv
 
 # Install dependencies
+venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirements.txt
 ```
+
+**Note:** See [PYTHON313_SETUP.md](PYTHON313_SETUP.md) for complete Python 3.13.5 setup instructions.
 
 ### 2. Start the Web Interface
 
@@ -48,20 +64,20 @@ Open your browser:
 
 **Terminal 1 - Start Web Interface:**
 ```bash
-cd /home/zaher/Loki-IDS/Web-Interface
+cd /Loki-IDS/Web-Interface
 venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8080
 ```
 
 **Terminal 2 - Setup iptables & Start IDS:**
 ```bash
-cd /home/zaher/Loki-IDS
+cd /Loki-IDS
 
 # Option 1: Combined script (recommended - prevents internet loss)
 sudo ./Scripts/start_ids_with_iptables.sh
 
 # Option 2: Separate steps (must start IDS immediately after iptables!)
 sudo ./Scripts/iptables_up.sh
-sudo ./Web-Interface/start_ids.sh  # START IMMEDIATELY!
+sudo Web-Interface/venv/bin/python3 Web-Interface/run_ids_with_integration.py  # START IMMEDIATELY!
 
 # Option 3: Manual start (must use venv Python)
 sudo ./Scripts/iptables_up.sh

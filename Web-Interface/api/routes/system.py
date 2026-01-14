@@ -3,9 +3,8 @@ System status and control endpoints.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
 import psutil
-import os
-from datetime import datetime
 
 from ..models.database import get_db
 from ..models.schemas import SystemStatus, HealthResponse
@@ -35,7 +34,6 @@ async def get_system_status(
     blacklist_size = len(blacklist)
     
     # Get alerts count for last 24h
-    from datetime import timedelta
     yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
     alerts, _ = await crud.get_alerts(db, skip=0, limit=1, start_time=yesterday)
     alerts_count_24h = len(alerts) if alerts else 0
@@ -71,7 +69,7 @@ async def health_check(
 async def reload_ids_signatures():
     """
     Reload IDS signatures from database.
-    Works with database-backed signature engine (run_ids_with_db_signatures.py).
+    Works with database-backed signature engine (run_ids_with_integration.py).
     For YAML-based engine, syncs database -> YAML instead.
     """
     try:

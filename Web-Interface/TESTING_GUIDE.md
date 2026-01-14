@@ -196,10 +196,7 @@ NFQUEUE  tcp  --  0.0.0.0/0  0.0.0.0/0  NFQUEUE num 200
 ```bash
 cd /home/zaher/Loki-IDS
 
-# Use startup script (uses venv Python)
-sudo ./Web-Interface/start_ids.sh
-
-# Or manually:
+# Start IDS with integration (must use venv Python):
 sudo Web-Interface/venv/bin/python3 Web-Interface/run_ids_with_integration.py
 ```
 
@@ -432,7 +429,7 @@ sudo iptables -L -n | grep NFQUEUE
 **Solution:**
 1. **Start IDS immediately** - Packets are queued and need IDS to process them
    ```bash
-   sudo ./Web-Interface/start_ids.sh
+   sudo Web-Interface/venv/bin/python3 Web-Interface/run_ids_with_integration.py
    ```
 
 2. **Or remove iptables rules:**

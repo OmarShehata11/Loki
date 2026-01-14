@@ -8,8 +8,15 @@ import os
 
 # Try to use venv Python if available
 script_dir = os.path.dirname(os.path.abspath(__file__))
-venv_python = os.path.join(script_dir, "venv", "bin", "python3")
-if os.path.exists(venv_python):
+# Check for Python 3.13 first, then fall back to python3
+venv_python = None
+for py_cmd in ["python3.13", "python3.12", "python3"]:
+    potential_python = os.path.join(script_dir, "venv", "bin", py_cmd)
+    if os.path.exists(potential_python):
+        venv_python = potential_python
+        break
+
+if venv_python and os.path.exists(venv_python):
     # If we're not already using venv Python, suggest using it
     if sys.executable != venv_python:
         print("[!] Warning: Not using virtual environment Python")
@@ -19,7 +26,7 @@ if os.path.exists(venv_python):
         print("")
         # Try to continue anyway, but warn
         print("[*] Attempting to continue...")
-        print("[*] If you get import errors, use: sudo venv/bin/python3 run_ids_with_integration.py")
+        print(f"[*] If you get import errors, use: sudo {venv_python} {__file__}")
         print("")
 
 # Add paths

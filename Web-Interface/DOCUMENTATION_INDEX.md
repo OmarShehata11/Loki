@@ -8,18 +8,23 @@
    - Basic usage
    - API endpoints
 
-2. **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - What's implemented
+2. **[PYTHON313_SETUP.md](PYTHON313_SETUP.md)** - Python 3.13.5 setup for Raspberry Pi 5
+   - Installing Python 3.13.5
+   - Configuring virtual environment
+   - Troubleshooting dependency issues
+
+3. **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - What's implemented
    - Complete feature list
    - Architecture decisions
    - File structure
    - Performance notes
 
-3. **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Complete testing guide
+4. **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Complete testing guide
    - Step-by-step testing
    - Test scenarios
    - Troubleshooting
 
-4. **[INTEGRATION.md](INTEGRATION.md)** - Integration & deployment
+5. **[INTEGRATION.md](INTEGRATION.md)** - Integration & deployment
    - System integration
    - Deployment on Raspberry Pi
    - Systemd services
@@ -28,9 +33,10 @@
 ## Quick Reference
 
 ### Getting Started
-1. Read [README.md](README.md) for quick start
-2. Follow [TESTING_GUIDE.md](TESTING_GUIDE.md) to test locally
-3. See [INTEGRATION.md](INTEGRATION.md) for deployment
+1. **For Python 3.13.5 on Raspberry Pi 5:** See [PYTHON313_SETUP.md](PYTHON313_SETUP.md)
+2. Read [README.md](README.md) for quick start
+3. Follow [TESTING_GUIDE.md](TESTING_GUIDE.md) to test locally
+4. See [INTEGRATION.md](INTEGRATION.md) for deployment
 
 ### Understanding the System
 1. Read [IMPLEMENTATION.md](IMPLEMENTATION.md) for what's built

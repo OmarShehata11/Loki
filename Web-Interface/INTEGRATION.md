@@ -85,9 +85,7 @@ cd /home/zaher/Loki-IDS
 
 # Run IDS with integration (requires root for NFQUEUE)
 # Must use venv Python to access installed dependencies
-sudo ./Web-Interface/start_ids.sh
-
-# Or manually:
+sudo Web-Interface/venv/bin/python3 Web-Interface/run_ids_with_integration.py
 sudo Web-Interface/venv/bin/python3 Web-Interface/run_ids_with_integration.py
 ```
 
