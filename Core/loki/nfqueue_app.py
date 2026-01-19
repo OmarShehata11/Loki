@@ -47,7 +47,7 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner, ip_blacklist):
         logger.console_logger.info(f"[{chain_name}] Packet: {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({packetInfo.get('port')})")
         
         # let's now try to analyze it with the port scanner:
-        analyze_result = port_scanner.analyze_packet(src_ip, packetInfo.get("rawts"), dst_ip)
+        analyze_result = port_scanner.analyze_packet(src_ip, packetInfo.get("rawts"), dst_port)
         
         #print(f"the analyze result is : {analyze_result}")
         
