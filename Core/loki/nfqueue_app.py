@@ -19,6 +19,10 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner, ip_blacklist):
         dst_ip = packetInfo.get("dst_ip")
         src_port = packetInfo.get("src_port")
         dst_port = packetInfo.get("dst_port")
+        raw_timestamp = packetInfo.get("rawts")
+        tcp_flags = packetInfo.get("tcp_flags")
+        port = packetInfo.get('port')
+
 
         if src_ip in ip_blacklist:
              logger.log_alert(
@@ -44,10 +48,34 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner, ip_blacklist):
         #print("the data are: ")
         #print(packetInfo)
         
-        logger.console_logger.info(f"[{chain_name}] Packet: {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({packetInfo.get('port')})")
+        logger.console_logger.info(f"[{chain_name}] Packet: {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({port})")
         
         # let's now try to analyze it with the port scanner:
-        analyze_result = port_scanner.analyze_packet(src_ip, dst_ip, packetInfo.get("rawts"), dst_port)
+
+        # ok now we need to organize our scanning according to the type of packet. 
+        # if it's TCP, UDP, ICMP (for now),,
+        # TCP:
+        # - SYN port scanning
+        # - SYN flood (DoS)
+        # ----------------
+        # UDP
+        # - UDP flood (DoS)
+        #----------------
+        # ICMP
+        # - ICMP flood (DoS)
+
+        # TCP should be only matter if SYN and not ACK to be classified as an
+        # attack (again just for the moment, maybe modified latter)..
+        if port == "TCP" and (tcp_flags & 0x02) and not (tcp_flags & 0x10):
+            analyze_result = port_scanner.analyze_tcp()
+
+        elif port == "UDP":
+            analyze_result = port_scanner.analyze_udp()
+
+        else: # MORE LIKELY TO BE ICMP
+            analyze_result = port_scanner.analyze_other()
+
+        #analyze_result = port_scanner.analyze_packet(src_ip, dst_ip, raw_timestamp, dst_port, tcp_flags)
         
         #print(f"the analyze result is : {analyze_result}")
         

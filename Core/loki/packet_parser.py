@@ -15,10 +15,17 @@ def scan_packet(packet):
     dst_port = 0
     src_port = 0 # incase the packet has no TCP or UDP layer.
     port = ""
-
+    tcp_flags = 0
+    
     if pkt.haslayer(TCP):
         dst_port = pkt[TCP].dport
         src_port = pkt[TCP].sport
+        tcp_flags = int(pkt[TCP].flags)
+        is_syn = bool(tcp_flags & 0x02)
+        is_ack = bool(tcp_flags & 0x10)
+        is_rst = bool(tcp_flags & 0x04)
+        is_fin = bool(tcp_flags & 0x01)
+
         port = "TCP"
 
     elif pkt.haslayer(UDP):
@@ -38,7 +45,8 @@ def scan_packet(packet):
             "src_port" : src_port,
             "dst_port" : dst_port,
             "port" : port,
-            "rawts" : timestamp
+            "rawts" : timestamp,
+            "tcp_flags": tcp_flags,
             }
     return Result # finaly returning the dictionary..
     
