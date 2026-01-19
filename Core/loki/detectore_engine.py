@@ -13,17 +13,18 @@ class PortScanningDetector:
         # the dictionary should have the time, and ip address, and port accessed.
         # the IP as a key, and list of (time, port access) as a value.
 
-    def analyze_packet(self, ip_address, timestamp, port_number):
-        if ip_address not in self.log:
+    def analyze_packet(self, src_ip_add, dst_ip_add, timestamp, port_number):
+        if (src_ip_add, dst_ip_add) not in self.log:
             # now it's the simplest case, just add it to the dictionary:    
-            self.log[ip_address].append((timestamp, port_number))
+            self.log[(src_ip_add, dst_ip_add)].append((timestamp, port_number))
+            
             # and that's it...
             return False
 
         else:
             # now it's the main thing, here we should compare and do the other logic.
             
-            history = self.log.get(ip_address)
+            history = self.log.get((src_ip_add, dst_ip_add))
 
             # check if there's already an item there and the difference in time is not big..
             while history and ((timestamp - history[0][0]) > self.m_sec) :
