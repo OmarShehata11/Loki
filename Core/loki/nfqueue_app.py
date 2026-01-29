@@ -23,6 +23,11 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
         tcp_flags = packetInfo.get("tcp_flags")
         port = packetInfo.get('port')
 
+        #ignore some useless packets not important to us..
+        if src_ip == "127.0.0.1" and dst_ip == "127.0.0.1":
+            packet.accept()
+            return
+
         # safe, nfqueue always returns the IP layer not the ethernet..
         ip_layer = IP(packet.get_payload())
         is_icmp = ip_layer.haslayer(ICMP)
@@ -226,14 +231,14 @@ def input_agent(sig_object):
 
 
 if __name__ == "__main__":
-    logger.console_logger.info("========== Starting LOKI IDS ==========")
-   #print()
+    logger.log_system_event("========== Starting LOKI IDS ==========", "INFO")
     
     # let's now create the 2 threads..
     try:
         sig_object = SignatureScanning() # Load rules
+        logger.log_system_event("Signature rules loaded successfully", "INFO")
     except Exception as e:
-        logger.console_logger.error(f"Failed to load signatures: {e}")
+        logger.log_system_event(f"Failed to load signatures: {e}", "ERROR")
         sig_object = None # Handle gracefully or exit
 
     if sig_object:
@@ -244,13 +249,42 @@ if __name__ == "__main__":
         input_thread.start()
         forward_thread.start()
 
-        logger.console_logger.info(" ### The Threads have started ### ")
+        logger.log_system_event("Detection threads started successfully", "INFO")
 
+    # Alert lifecycle management
+    last_check_time = time.time()
+    check_interval = 2  # Check every 2 seconds
+    
     # let's make sure the main thread exit peacefully::
     try:
         while True:
-            time.sleep(1) # just sleep for one second, then intercept.
+            time.sleep(1)
+            
+            # Check for ended attacks
+            current_time = time.time()
+            if current_time - last_check_time >= check_interval:
+                ended_count = logger.check_ended_alerts()
+                if ended_count > 0:
+                    stats = logger.get_stats()
+                    logger.console_logger.debug(
+                        f"Closed {ended_count} attack(s) | "
+                        f"Active: {stats['active_alerts']} | "
+                        f"Suppressed: {stats['suppressed_alerts']}"
+                    )
+                last_check_time = current_time
+                
     except KeyboardInterrupt:
         print()
-        logger.console_logger.info("[*] Received ^C, Quitting...")
-        logger.console_logger.info(" ========== Stopping LOKI IDS ==========")
+        logger.log_system_event("Received shutdown signal (Ctrl+C)", "WARNING")
+        
+        # Final cleanup
+        logger.check_ended_alerts()
+        stats = logger.get_stats()
+        logger.log_system_event(
+            f"Session stats - Active alerts: {stats['active_alerts']}, "
+            f"Suppressed duplicates: {stats['suppressed_alerts']}, "
+            f"Efficiency: {stats['suppression_rate']}",
+            "INFO"
+        )
+        
+        logger.log_system_event("========== Stopping LOKI IDS ==========", "INFO")
