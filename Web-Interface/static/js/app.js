@@ -1,7 +1,9 @@
 // Loki IDS Dashboard JavaScript
 const API_BASE = '/api';
 let currentPage = 1;
-let pageSize = 50;
+let pageSize = 25;  // Default page size
+let currentSignaturePage = 1;
+let signaturePageSize = 20;
 let alertsChart = null;
 
 // Initialize
@@ -10,6 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
     setupWebSocket();
     setInterval(loadDashboard, 30000); // Refresh every 30 seconds
+    
+    // Set initial page size selector value
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    if (pageSizeSelect) {
+        pageSizeSelect.value = pageSize.toString();
+    }
 });
 
 // Tab switching
@@ -24,7 +32,6 @@ function setupTabs() {
             
             if (tab === 'alerts') loadAlerts();
             if (tab === 'signatures') loadSignatures();
-            if (tab === 'blacklist') loadBlacklist();
         });
     });
 }
@@ -43,7 +50,6 @@ async function loadDashboard() {
         const statusRes = await fetch(`${API_BASE}/system/status`);
         const status = await statusRes.json();
         
-        document.getElementById('blacklistSize').textContent = status.blacklist_size || 0;
         document.getElementById('idsStatus').textContent = status.ids_running ? 'Running' : 'Stopped';
         document.getElementById('idsStatus').style.color = status.ids_running ? '#4ade80' : '#f87171';
         
@@ -142,26 +148,69 @@ function displayRecentAlerts(alerts) {
     container.innerHTML = alerts.map(alert => `
         <div class="alert-item ${alert.type.toLowerCase()}">
             <div class="alert-info">
-                <span class="alert-type">${alert.type}</span>
-                <strong>${alert.src_ip}</strong> → ${alert.dst_ip || 'N/A'}
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <span class="alert-type">${alert.type}</span>
+                    ${alert.subtype ? `<span class="badge subtype-badge">${alert.subtype.replace(/_/g, ' ')}</span>` : ''}
+                    ${alert.pattern ? `<span class="badge pattern-badge">Pattern: ${alert.pattern}</span>` : ''}
+                    ${alert.status ? `<span class="badge status-badge status-${alert.status.toLowerCase()}">${alert.status}</span>` : ''}
+                </div>
+                <strong>${alert.src_ip}:${alert.src_port || 'N/A'}</strong> → ${alert.dst_ip || 'N/A'}:${alert.dst_port || 'N/A'}
                 <br>
                 <small style="color: #888;">${alert.message}</small>
+                ${alert.packet_count ? `<br><small style="color: #666;">Packets: ${alert.packet_count} | Duration: ${alert.duration_seconds ? alert.duration_seconds.toFixed(1) + 's' : 'N/A'}</small>` : ''}
+                ${alert.total_packets ? `<br><small style="color: #666;">Total Packets: ${alert.total_packets} | Duration: ${alert.total_duration_seconds ? alert.total_duration_seconds.toFixed(1) + 's' : 'N/A'}</small>` : ''}
                 <br>
                 <small style="color: #666;">${new Date(alert.timestamp).toLocaleString()}</small>
+            </div>
+            <div class="item-actions">
+                <button class="btn-delete" onclick="deleteAlert(${alert.id})">Delete</button>
             </div>
         </div>
     `).join('');
 }
 
 // Alerts
+function changePageSize() {
+    const newPageSize = parseInt(document.getElementById('pageSizeSelect').value);
+    pageSize = newPageSize;
+    currentPage = 1;  // Reset to first page when changing page size
+    loadAlerts();
+}
+
+// Debounce function to limit API calls when typing in filter inputs
+let filterTimeout = null;
+function debounceLoadAlerts() {
+    if (filterTimeout) {
+        clearTimeout(filterTimeout);
+    }
+    filterTimeout = setTimeout(() => {
+        currentPage = 1;  // Reset to first page when filter changes
+        loadAlerts();
+    }, 300);  // Wait 300ms after user stops typing
+}
+
 async function loadAlerts() {
     try {
         const typeFilter = document.getElementById('alertTypeFilter')?.value || '';
-        const ipFilter = document.getElementById('ipFilter')?.value || '';
+        const subtypeFilter = document.getElementById('alertSubtypeFilter')?.value || '';
+        const patternFilter = document.getElementById('alertPatternFilter')?.value || '';
+        const statusFilter = document.getElementById('alertStatusFilter')?.value || '';
+        const srcIpFilter = document.getElementById('srcIpFilter')?.value || '';
+        const dstIpFilter = document.getElementById('dstIpFilter')?.value || '';
+        
+        // Update page size from selector if it exists
+        const pageSizeSelect = document.getElementById('pageSizeSelect');
+        if (pageSizeSelect) {
+            pageSize = parseInt(pageSizeSelect.value);
+        }
         
         let url = `${API_BASE}/alerts?page=${currentPage}&page_size=${pageSize}`;
         if (typeFilter) url += `&alert_type=${typeFilter}`;
-        if (ipFilter) url += `&src_ip=${ipFilter}`;
+        if (subtypeFilter) url += `&subtype=${subtypeFilter}`;
+        if (patternFilter) url += `&pattern=${encodeURIComponent(patternFilter)}`;
+        if (statusFilter) url += `&status=${statusFilter}`;
+        if (srcIpFilter) url += `&src_ip=${encodeURIComponent(srcIpFilter)}`;
+        if (dstIpFilter) url += `&dst_ip=${encodeURIComponent(dstIpFilter)}`;
         
         const res = await fetch(url);
         const data = await res.json();
@@ -185,15 +234,23 @@ function displayAlerts(alerts) {
     container.innerHTML = alerts.map(alert => `
         <div class="alert-item ${alert.type.toLowerCase()}">
             <div class="alert-info">
-                <span class="alert-type">${alert.type}</span>
-                <strong>${alert.src_ip}:${alert.src_port || 'N/A'}</strong> → 
-                ${alert.dst_ip || 'N/A'}:${alert.dst_port || 'N/A'}
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <span class="alert-type">${alert.type}</span>
+                    ${alert.subtype ? `<span class="badge subtype-badge">${alert.subtype.replace(/_/g, ' ')}</span>` : ''}
+                    ${alert.pattern ? `<span class="badge pattern-badge">Pattern: ${alert.pattern}</span>` : ''}
+                    ${alert.status ? `<span class="badge status-badge status-${alert.status.toLowerCase()}">${alert.status}</span>` : ''}
+                </div>
+                <strong>${alert.src_ip}:${alert.src_port || 'N/A'}</strong> → ${alert.dst_ip || 'N/A'}:${alert.dst_port || 'N/A'}
                 <br>
                 <small style="color: #888;">${alert.message}</small>
+                ${alert.packet_count ? `<br><small style="color: #666;">Packets: ${alert.packet_count} | Duration: ${alert.duration_seconds ? alert.duration_seconds.toFixed(1) + 's' : 'N/A'}</small>` : ''}
+                ${alert.total_packets ? `<br><small style="color: #666;">Total Packets: ${alert.total_packets} | Duration: ${alert.total_duration_seconds ? alert.total_duration_seconds.toFixed(1) + 's' : 'N/A'}</small>` : ''}
                 <br>
                 <small style="color: #666;">${new Date(alert.timestamp).toLocaleString()}</small>
             </div>
-            <button class="btn-delete" onclick="deleteAlert(${alert.id})">Delete</button>
+            <div class="item-actions">
+                <button class="btn-delete" onclick="deleteAlert(${alert.id})">Delete</button>
+            </div>
         </div>
     `).join('');
 }
@@ -214,38 +271,66 @@ function changePage(delta) {
 }
 
 async function deleteAlert(id) {
-    if (!confirm('Delete this alert?')) return;
-    
-    try {
-        await fetch(`${API_BASE}/alerts/${id}`, { method: 'DELETE' });
-        loadAlerts();
-    } catch (error) {
-        console.error('Error deleting alert:', error);
-        alert('Error deleting alert');
-    }
+    showConfirmModal(
+        'Delete Alert',
+        'Are you sure you want to delete this alert? This action cannot be undone.',
+        async () => {
+            try {
+                await fetch(`${API_BASE}/alerts/${id}`, { method: 'DELETE' });
+                loadAlerts();
+                loadDashboard();
+            } catch (error) {
+                console.error('Error deleting alert:', error);
+                showConfirmModal('Error', 'Failed to delete alert. Please try again.', null, 'OK');
+            }
+        }
+    );
 }
 
 // Signatures
-async function loadSignatures() {
+async function loadSignatures(showFeedback = false) {
     try {
-        const res = await fetch(`${API_BASE}/signatures`);
-        const signatures = await res.json();
+        // Get filter values
+        const search = document.getElementById('signatureSearch')?.value || '';
+        const actionFilter = document.getElementById('signatureActionFilter')?.value || '';
+        const enabledFilter = document.getElementById('signatureEnabledFilter')?.value || '';
+        
+        // Build URL with filters and pagination
+        let url = `${API_BASE}/signatures?page=${currentSignaturePage}&page_size=${signaturePageSize}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (actionFilter) url += `&action=${actionFilter}`;
+        if (enabledFilter) url += `&enabled=${enabledFilter === 'true'}`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        const signatures = data.signatures || [];
         
         const container = document.getElementById('signaturesList');
         if (signatures.length === 0) {
-            container.innerHTML = '<p style="color: #888;">No signatures configured</p>';
+            container.innerHTML = '<p style="color: #888;">No signatures found</p>';
+            updateSignaturePagination(data.total || 0, data.page || 1, data.page_size || signaturePageSize);
+            if (showFeedback) {
+                showRefreshSuccess();
+            }
             return;
         }
         
         container.innerHTML = signatures.map(sig => `
-            <div class="signature-item">
+            <div class="signature-item signature-action-alert">
                 <div class="item-info">
-                    <strong>${sig.name}</strong>
-                    <span class="badge ${sig.enabled ? 'badge-enabled' : 'badge-disabled'}">${sig.enabled ? 'Enabled' : 'Disabled'}</span>
-                    <br>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <strong>${sig.name}</strong>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${sig.enabled ? 'checked' : ''} 
+                                   onchange="toggleSignature(${sig.id}, this.checked)"
+                                   id="toggle-${sig.id}">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="badge ${sig.enabled ? 'badge-enabled' : 'badge-disabled'}">${sig.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
                     <small style="color: #888;">Pattern: <code>${sig.pattern}</code></small>
                     <br>
-                    <small style="color: #666;">Action: ${sig.action}</small>
+                    <span class="badge action-badge action-alert">ALERT</span>
                     ${sig.description ? `<br><small style="color: #666;">${sig.description}</small>` : ''}
                 </div>
                 <div class="item-actions">
@@ -254,9 +339,104 @@ async function loadSignatures() {
                 </div>
             </div>
         `).join('');
+        
+        // Update pagination
+        updateSignaturePagination(data.total || 0, data.page || 1, data.page_size || signaturePageSize);
+        
+        if (showFeedback) {
+            showRefreshSuccess();
+        }
     } catch (error) {
         console.error('Error loading signatures:', error);
+        if (showFeedback) {
+            showRefreshError();
+        }
     }
+}
+
+function applySignatureFilters() {
+    currentSignaturePage = 1; // Reset to first page when filtering
+    loadSignatures();
+}
+
+function clearSignatureFilters() {
+    document.getElementById('signatureSearch').value = '';
+    document.getElementById('signatureActionFilter').value = '';
+    document.getElementById('signatureEnabledFilter').value = '';
+    currentSignaturePage = 1;
+    loadSignatures();
+}
+
+function updateSignaturePagination(total, page, pageSize) {
+    const pageInfo = document.getElementById('signaturePageInfo');
+    const totalPages = Math.ceil(total / pageSize);
+    pageInfo.textContent = `Page ${page} of ${totalPages} (${total} total)`;
+    
+    document.getElementById('prevSignaturePage').disabled = page <= 1;
+    document.getElementById('nextSignaturePage').disabled = page >= totalPages;
+}
+
+function changeSignaturePage(delta) {
+    currentSignaturePage += delta;
+    if (currentSignaturePage < 1) currentSignaturePage = 1;
+    loadSignatures();
+}
+
+async function refreshSignatures() {
+    const btn = document.getElementById('refreshSignaturesBtn');
+    const text = document.getElementById('refreshSignaturesText');
+    const spinner = document.getElementById('refreshSignaturesSpinner');
+    
+    // Disable button and show loading
+    btn.disabled = true;
+    text.style.display = 'none';
+    spinner.style.display = 'inline-block';
+    
+    // Load signatures with feedback
+    await loadSignatures(true);
+    
+    // Re-enable button and hide spinner
+    setTimeout(() => {
+        btn.disabled = false;
+        text.style.display = 'inline';
+        spinner.style.display = 'none';
+    }, 500);
+}
+
+function showRefreshSuccess() {
+    const btn = document.getElementById('refreshSignaturesBtn');
+    const text = document.getElementById('refreshSignaturesText');
+    const spinner = document.getElementById('refreshSignaturesSpinner');
+    
+    // Hide spinner and show success text
+    spinner.style.display = 'none';
+    text.style.display = 'inline';
+    text.textContent = '✓ Refreshed';
+    btn.style.backgroundColor = '#4ade80';
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+        text.textContent = 'Refresh Signatures';
+        btn.style.backgroundColor = '';
+    }, 2000);
+}
+
+function showRefreshError() {
+    const btn = document.getElementById('refreshSignaturesBtn');
+    const text = document.getElementById('refreshSignaturesText');
+    const spinner = document.getElementById('refreshSignaturesSpinner');
+    
+    // Hide spinner and show error text
+    spinner.style.display = 'none';
+    text.style.display = 'inline';
+    text.textContent = '✗ Error';
+    btn.style.backgroundColor = '#ef4444';
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+        text.textContent = 'Refresh Signatures';
+        btn.style.backgroundColor = '';
+    }, 2000);
 }
 
 let editingSignatureId = null;
@@ -289,7 +469,6 @@ async function editSignature(id) {
         document.getElementById('sigId').value = sig.id;
         document.getElementById('sigName').value = sig.name;
         document.getElementById('sigPattern').value = sig.pattern;
-        document.getElementById('sigAction').value = sig.action;
         document.getElementById('sigDescription').value = sig.description || '';
         document.getElementById('sigEnabled').checked = sig.enabled;
         
@@ -311,7 +490,7 @@ document.getElementById('signatureForm').addEventListener('submit', async (e) =>
     const signature = {
         name: document.getElementById('sigName').value,
         pattern: document.getElementById('sigPattern').value,
-        action: document.getElementById('sigAction').value,
+        action: 'alert',  // Only alert action supported
         description: document.getElementById('sigDescription').value,
         enabled: document.getElementById('sigEnabled').checked
     };
@@ -343,16 +522,49 @@ document.getElementById('signatureForm').addEventListener('submit', async (e) =>
     }
 });
 
-async function deleteSignature(id) {
-    if (!confirm('Delete this signature?')) return;
-    
+async function toggleSignature(id, enabled) {
     try {
-        await fetch(`${API_BASE}/signatures/${id}`, { method: 'DELETE' });
+        // Get current signature to preserve other fields
+        const res = await fetch(`${API_BASE}/signatures/${id}`);
+        const sig = await res.json();
+        
+        // Update only the enabled field
+        await fetch(`${API_BASE}/signatures/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: sig.name,
+                pattern: sig.pattern,
+                action: sig.action,
+                description: sig.description || '',
+                enabled: enabled
+            })
+        });
+        
+        // Reload signatures to update the UI
         loadSignatures();
     } catch (error) {
-        console.error('Error deleting signature:', error);
-        alert('Error deleting signature');
+        console.error('Error toggling signature:', error);
+        alert('Error toggling signature: ' + (error.message || 'Unknown error'));
+        // Reload to reset toggle state on error
+        loadSignatures();
     }
+}
+
+async function deleteSignature(id) {
+    showConfirmModal(
+        'Delete Signature',
+        'Are you sure you want to delete this signature? This action cannot be undone.',
+        async () => {
+            try {
+                await fetch(`${API_BASE}/signatures/${id}`, { method: 'DELETE' });
+                loadSignatures();
+            } catch (error) {
+                console.error('Error deleting signature:', error);
+                showConfirmModal('Error', 'Failed to delete signature. Please try again.', null, 'OK');
+            }
+        }
+    );
 }
 
 async function handleYamlFileUpload(event) {
@@ -366,36 +578,38 @@ async function handleYamlFileUpload(event) {
         return;
     }
     
-    if (!confirm(`Import signatures from ${file.name} to database? This will load YAML signatures into the database.`)) {
-        event.target.value = ''; // Reset file input
-        return;
-    }
-    
-    try {
-        // Create FormData and append file
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const res = await fetch(`${API_BASE}/signatures/reload`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.detail || 'Failed to import signatures');
+    // Show confirmation modal
+    showConfirmModal(
+        'Import Signatures',
+        `Import signatures from ${file.name} to database? This will load YAML signatures into the database.`,
+        async () => {
+            try {
+                // Create FormData and append file
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const res = await fetch(`${API_BASE}/signatures/reload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.detail || 'Failed to import signatures');
+                }
+                
+                const data = await res.json();
+                showConfirmModal('Success', `Successfully imported ${data.count} signatures from ${data.filename || file.name} to database`, null, 'OK');
+                loadSignatures();
+            } catch (error) {
+                console.error('Error importing signatures:', error);
+                showConfirmModal('Error', `Error importing signatures: ${error.message}`, null, 'OK');
+            } finally {
+                // Reset file input
+                event.target.value = '';
+            }
         }
-        
-        const data = await res.json();
-        alert(`Successfully imported ${data.count} signatures from ${data.filename || file.name} to database`);
-        loadSignatures();
-    } catch (error) {
-        console.error('Error importing signatures:', error);
-        alert(`Error importing signatures: ${error.message}`);
-    } finally {
-        // Reset file input
-        event.target.value = '';
-    }
+    );
 }
 
 async function reloadSignatures() {
@@ -403,86 +617,57 @@ async function reloadSignatures() {
     document.getElementById('yamlFileInput').click();
 }
 
-async function reloadIDSSignatures() {
-    if (!confirm('Reload IDS signatures from database? This will update the IDS with latest database signatures (no restart needed).')) return;
+// Removed reloadIDSSignatures() - use loadSignatures() instead to refresh from database
+
+// Confirmation Modal Functions
+let confirmCallback = null;
+
+function showConfirmModal(title, message, callback, confirmText = 'Confirm') {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const confirmBtn = document.getElementById('confirmButton');
+    const cancelBtn = document.getElementById('cancelButton');
+    const buttonsContainer = document.getElementById('confirmButtons');
     
-    try {
-        const res = await fetch(`${API_BASE}/system/reload-signatures`, { method: 'POST' });
-        const data = await res.json();
-        alert(`${data.message}\n\n${data.note || ''}`);
-    } catch (error) {
-        console.error('Error reloading IDS signatures:', error);
-        alert('Error reloading IDS signatures');
+    confirmCallback = callback;
+    document.getElementById('confirmModal').style.display = 'block';
+    
+    // If no callback (info-only modal), show only OK button
+    if (!callback) {
+        confirmBtn.textContent = 'OK';
+        confirmBtn.className = 'btn-secondary';
+        cancelBtn.style.display = 'none';
+        confirmBtn.onclick = () => closeConfirmModal();
+    } else {
+        confirmBtn.textContent = confirmText;
+        confirmBtn.className = 'btn-delete';
+        cancelBtn.style.display = 'inline-block';
+        confirmBtn.onclick = () => {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmModal();
+        };
     }
 }
 
-// Blacklist
-async function loadBlacklist() {
-    try {
-        const res = await fetch(`${API_BASE}/blacklist`);
-        const blacklist = await res.json();
-        
-        const container = document.getElementById('blacklistList');
-        if (blacklist.length === 0) {
-            container.innerHTML = '<p style="color: #888;">Blacklist is empty</p>';
-            return;
-        }
-        
-        container.innerHTML = blacklist.map(entry => `
-            <div class="blacklist-item">
-                <div class="item-info">
-                    <strong>${entry.ip_address}</strong>
-                    ${entry.reason ? `<br><small style="color: #888;">${entry.reason}</small>` : ''}
-                    <br>
-                    <small style="color: #666;">Added: ${new Date(entry.added_at).toLocaleString()}</small>
-                </div>
-                <div class="item-actions">
-                    <button class="btn-delete" onclick="removeFromBlacklist('${entry.ip_address}')">Remove</button>
-                </div>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading blacklist:', error);
-    }
+function closeConfirmModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+    confirmCallback = null;
 }
 
-async function addToBlacklist() {
-    const ip = document.getElementById('newIPInput').value.trim();
-    const reason = document.getElementById('newIPReason').value.trim();
+// Close modals when clicking outside of them
+document.addEventListener('click', function(event) {
+    const signatureModal = document.getElementById('addSignatureModal');
+    const confirmModal = document.getElementById('confirmModal');
     
-    if (!ip) {
-        alert('Please enter an IP address');
-        return;
+    if (event.target == signatureModal) {
+        closeModal();
     }
-    
-    try {
-        await fetch(`${API_BASE}/blacklist`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip_address: ip, reason: reason || null })
-        });
-        document.getElementById('newIPInput').value = '';
-        document.getElementById('newIPReason').value = '';
-        loadBlacklist();
-        loadDashboard();
-    } catch (error) {
-        console.error('Error adding to blacklist:', error);
-        alert('Error adding to blacklist');
+    if (event.target == confirmModal) {
+        closeConfirmModal();
     }
-}
-
-async function removeFromBlacklist(ip) {
-    if (!confirm(`Remove ${ip} from blacklist?`)) return;
-    
-    try {
-        await fetch(`${API_BASE}/blacklist/${ip}`, { method: 'DELETE' });
-        loadBlacklist();
-        loadDashboard();
-    } catch (error) {
-        console.error('Error removing from blacklist:', error);
-        alert('Error removing from blacklist');
-    }
-}
+});
 
 // WebSocket for real-time updates
 function setupWebSocket() {

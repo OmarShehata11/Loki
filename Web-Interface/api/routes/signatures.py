@@ -3,7 +3,7 @@ Signature management endpoints.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 import yaml
 
 from ..models.database import get_db
@@ -15,26 +15,47 @@ from ..models import crud
 router = APIRouter(prefix="/signatures", tags=["signatures"])
 
 
-@router.get("", response_model=List[SignatureResponse])
+@router.get("")
 async def get_signatures(
     enabled_only: bool = False,
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    action: str = None,
+    enabled: bool = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all signatures."""
-    signatures = await crud.get_signatures(db, enabled_only=enabled_only)
-    return [
-        SignatureResponse(
-            id=sig.id,
-            name=sig.name,
-            pattern=sig.pattern,
-            action=sig.action,
-            description=sig.description,
-            enabled=sig.enabled,
-            created_at=sig.created_at,
-            updated_at=sig.updated_at
-        )
-        for sig in signatures
-    ]
+    """Get signatures with filtering and pagination."""
+    skip = (page - 1) * page_size
+    
+    signatures, total = await crud.get_signatures(
+        db, 
+        enabled_only=enabled_only,
+        skip=skip,
+        limit=page_size,
+        search=search,
+        action=action,
+        enabled=enabled
+    )
+    
+    return {
+        "signatures": [
+            SignatureResponse(
+                id=sig.id,
+                name=sig.name,
+                pattern=sig.pattern,
+                action=sig.action,
+                description=sig.description,
+                enabled=sig.enabled,
+                created_at=sig.created_at,
+                updated_at=sig.updated_at
+            )
+            for sig in signatures
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
 
 
 @router.get("/{sig_id}", response_model=SignatureResponse)
@@ -93,6 +114,10 @@ async def update_signature(
 ):
     """Update a signature."""
     update_data = signature.dict(exclude_unset=True)
+    
+    # Force action to "alert" (drop removed)
+    if "action" in update_data:
+        update_data["action"] = "alert"
     
     # If name is being updated, check for conflicts
     if "name" in update_data:
@@ -155,7 +180,7 @@ async def reload_signatures(
                 # Update existing
                 await crud.update_signature(db, existing.id, {
                     'pattern': sig_data['pattern'],
-                    'action': sig_data.get('action', 'alert'),
+                    'action': 'alert',  # Only alert now
                     'description': sig_data.get('description', ''),
                     'enabled': 1
                 })
@@ -164,7 +189,7 @@ async def reload_signatures(
                 await crud.create_signature(db, {
                     'name': sig_data['name'],
                     'pattern': sig_data['pattern'],
-                    'action': sig_data.get('action', 'alert'),
+                    'action': 'alert',  # Only alert now
                     'description': sig_data.get('description', ''),
                     'enabled': 1
                 })
@@ -183,25 +208,4 @@ async def reload_signatures(
         raise HTTPException(status_code=500, detail=f"Error reloading signatures: {str(e)}")
 
 
-@router.post("/sync-to-yaml")
-async def sync_signatures_to_yaml(
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Sync signatures from database to YAML file.
-    This makes database signatures available to the IDS.
-    After syncing, the IDS needs to reload its signatures.
-    """
-    try:
-        from integration.signature_manager import signature_manager
-        count = await signature_manager.sync_db_to_yaml_async()
-        
-        return {
-            "message": f"Synced {count} signatures from database to YAML file",
-            "count": count,
-            "yaml_file": signature_manager.yaml_file_path,
-            "note": "IDS needs to reload signatures to use the updated YAML file"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error syncing signatures: {str(e)}")
 

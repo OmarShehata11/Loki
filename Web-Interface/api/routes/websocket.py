@@ -52,7 +52,7 @@ async def websocket_alerts(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# Function to broadcast new alerts (called from logger integration)
+# Function to broadcast new alerts (can be called from external systems)
 async def broadcast_alert(alert_data: dict):
     """Broadcast a new alert to all connected WebSocket clients."""
     await manager.broadcast({

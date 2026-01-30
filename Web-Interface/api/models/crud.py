@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import json
 
-from .database import Alert, BlacklistEntry, Signature, StatsCache
+from .database import Alert, Signature, StatsCache
 
 
 # Alert CRUD
@@ -26,7 +26,11 @@ async def get_alerts(
     skip: int = 0,
     limit: int = 100,
     alert_type: Optional[str] = None,
+    subtype: Optional[str] = None,
+    pattern: Optional[str] = None,
+    status: Optional[str] = None,
     src_ip: Optional[str] = None,
+    dst_ip: Optional[str] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None
 ) -> tuple[List[Alert], int]:
@@ -37,8 +41,16 @@ async def get_alerts(
     conditions = []
     if alert_type:
         conditions.append(Alert.type == alert_type)
+    if subtype:
+        conditions.append(Alert.subtype == subtype)
+    if pattern:
+        conditions.append(Alert.pattern.like(f"%{pattern}%"))  # Partial match (SQLite like is case-insensitive for ASCII)
+    if status:
+        conditions.append(Alert.status == status)
     if src_ip:
-        conditions.append(Alert.src_ip == src_ip)
+        conditions.append(Alert.src_ip.like(f"%{src_ip}%"))  # Partial match
+    if dst_ip:
+        conditions.append(Alert.dst_ip.like(f"%{dst_ip}%"))  # Partial match
     if start_time:
         conditions.append(Alert.timestamp >= start_time)
     if end_time:
@@ -77,77 +89,52 @@ async def delete_alert(db: AsyncSession, alert_id: int) -> bool:
     return False
 
 
-# Blacklist CRUD
-async def get_blacklist(db: AsyncSession, active_only: bool = True) -> List[BlacklistEntry]:
-    """Get all blacklist entries."""
-    query = select(BlacklistEntry)
-    if active_only:
-        query = query.where(BlacklistEntry.active == 1)
-    query = query.order_by(desc(BlacklistEntry.added_at))
-    result = await db.execute(query)
-    return result.scalars().all()
-
-
-async def get_blacklist_entry(db: AsyncSession, ip_address: str) -> Optional[BlacklistEntry]:
-    """Get a blacklist entry by IP."""
-    result = await db.execute(
-        select(BlacklistEntry).where(BlacklistEntry.ip_address == ip_address)
-    )
-    return result.scalar_one_or_none()
-
-
-async def add_to_blacklist(
-    db: AsyncSession,
-    ip_address: str,
-    reason: Optional[str] = None,
-    added_by: str = "user"
-) -> BlacklistEntry:
-    """Add an IP to the blacklist."""
-    # Check if already exists
-    existing = await get_blacklist_entry(db, ip_address)
-    if existing:
-        # Reactivate if it was removed
-        if existing.active == 0:
-            existing.active = 1
-            existing.added_at = datetime.utcnow().isoformat()
-            existing.reason = reason or existing.reason
-            await db.commit()
-            await db.refresh(existing)
-            return existing
-        return existing
-    
-    entry = BlacklistEntry(
-        ip_address=ip_address,
-        reason=reason,
-        added_by=added_by,
-        added_at=datetime.utcnow().isoformat(),
-        active=1
-    )
-    db.add(entry)
-    await db.commit()
-    await db.refresh(entry)
-    return entry
-
-
-async def remove_from_blacklist(db: AsyncSession, ip_address: str) -> bool:
-    """Remove an IP from blacklist (soft delete)."""
-    entry = await get_blacklist_entry(db, ip_address)
-    if entry:
-        entry.active = 0
-        await db.commit()
-        return True
-    return False
-
-
 # Signature CRUD
-async def get_signatures(db: AsyncSession, enabled_only: bool = False) -> List[Signature]:
-    """Get all signatures."""
+async def get_signatures(
+    db: AsyncSession, 
+    enabled_only: bool = False,
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    action: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> tuple[List[Signature], int]:
+    """Get signatures with filtering and pagination."""
     query = select(Signature)
+    count_query = select(func.count()).select_from(Signature)
+    
+    # Apply filters
+    conditions = []
     if enabled_only:
-        query = query.where(Signature.enabled == 1)
+        conditions.append(Signature.enabled == 1)
+    if enabled is not None:
+        conditions.append(Signature.enabled == (1 if enabled else 0))
+    if action:
+        conditions.append(Signature.action == action)
+    if search:
+        search_pattern = f"%{search}%"
+        conditions.append(
+            (Signature.name.ilike(search_pattern)) |
+            (Signature.pattern.ilike(search_pattern)) |
+            (Signature.description.ilike(search_pattern))
+        )
+    
+    if conditions:
+        query = query.where(and_(*conditions))
+        count_query = count_query.where(and_(*conditions))
+    
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # Apply ordering and pagination
     query = query.order_by(Signature.name)
+    query = query.offset(skip).limit(limit)
+    
     result = await db.execute(query)
-    return result.scalars().all()
+    signatures = result.scalars().all()
+    
+    return signatures, total
 
 
 async def get_signature_by_id(db: AsyncSession, sig_id: int) -> Optional[Signature]:

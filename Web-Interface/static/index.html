@@ -20,7 +20,6 @@
             <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
             <button class="tab-btn" data-tab="alerts">Alerts</button>
             <button class="tab-btn" data-tab="signatures">Signatures</button>
-            <button class="tab-btn" data-tab="blacklist">Blacklist</button>
         </nav>
 
         <!-- Dashboard Tab -->
@@ -33,10 +32,6 @@
                 <div class="stat-card">
                     <h3>Alerts (24h)</h3>
                     <p class="stat-value" id="alerts24h">-</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Blacklist Size</h3>
-                    <p class="stat-value" id="blacklistSize">-</p>
                 </div>
                 <div class="stat-card">
                     <h3>IDS Status</h3>
@@ -64,14 +59,34 @@
         <!-- Alerts Tab -->
         <div id="alerts" class="tab-content">
             <div class="filters">
-                <select id="alertTypeFilter">
+                <select id="alertTypeFilter" onchange="loadAlerts()">
                     <option value="">All Types</option>
                     <option value="SIGNATURE">Signature</option>
                     <option value="BEHAVIOR">Behavior</option>
-                    <option value="BLACKLIST">Blacklist</option>
+                    <option value="SYSTEM">System</option>
                 </select>
-                <input type="text" id="ipFilter" placeholder="Filter by IP...">
-                <button onclick="loadAlerts()">Refresh</button>
+                <select id="alertSubtypeFilter" onchange="loadAlerts()">
+                    <option value="">All Subtypes</option>
+                    <option value="PORT_SCAN">Port Scan</option>
+                    <option value="TCP_FLOOD">TCP Flood</option>
+                    <option value="UDP_FLOOD">UDP Flood</option>
+                    <option value="ICMP_FLOOD">ICMP Flood</option>
+                </select>
+                <input type="text" id="alertPatternFilter" placeholder="Filter by pattern (signatures)..." oninput="debounceLoadAlerts()">
+                <select id="alertStatusFilter" onchange="loadAlerts()">
+                    <option value="">All Status</option>
+                    <option value="STARTED">Started</option>
+                    <option value="ONGOING">Ongoing</option>
+                    <option value="ENDED">Ended</option>
+                </select>
+                <input type="text" id="srcIpFilter" placeholder="Source IP..." oninput="debounceLoadAlerts()">
+                <input type="text" id="dstIpFilter" placeholder="Destination IP..." oninput="debounceLoadAlerts()">
+                <select id="pageSizeSelect" onchange="changePageSize()">
+                    <option value="10">10 per page</option>
+                    <option value="25" selected>25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
             </div>
             <div id="alertsList"></div>
             <div class="pagination">
@@ -83,24 +98,38 @@
 
         <!-- Signatures Tab -->
         <div id="signatures" class="tab-content">
-            <div class="action-bar">
-                <button onclick="showAddSignatureModal()">+ Add Signature</button>
-                <button onclick="reloadIDSSignatures()">Reload IDS Signatures</button>
-                <button onclick="document.getElementById('yamlFileInput').click()">Import from YAML</button>
-                <input type="file" id="yamlFileInput" accept=".yaml,.yml" style="display: none;" onchange="handleYamlFileUpload(event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 20px;">
+                <div class="action-bar" style="margin-bottom: 0; margin-right: auto;">
+                    <button onclick="showAddSignatureModal()">+ Add Signature</button>
+                    <button id="refreshSignaturesBtn" onclick="refreshSignatures()">
+                        <span id="refreshSignaturesText">Refresh Signatures</span>
+                        <span id="refreshSignaturesSpinner" class="spinner" style="display: none; margin-left: 8px;"></span>
+                    </button>
+                    <button onclick="document.getElementById('yamlFileInput').click()">Import from YAML</button>
+                    <input type="file" id="yamlFileInput" accept=".yaml,.yml" style="display: none;" onchange="handleYamlFileUpload(event)">
+                </div>
+                <div class="filters" style="margin-bottom: 0; margin-left: auto;">
+                    <input type="text" id="signatureSearch" placeholder="Search by name, pattern, or description..." onkeyup="applySignatureFilters()">
+                    <select id="signatureActionFilter" onchange="applySignatureFilters()" style="display: none;">
+                        <option value="">All Actions</option>
+                        <option value="alert">Alert</option>
+                    </select>
+                    <select id="signatureEnabledFilter" onchange="applySignatureFilters()">
+                        <option value="">All Status</option>
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
+                    </select>
+                    <button onclick="clearSignatureFilters()">Clear Filters</button>
+                </div>
             </div>
             <div id="signaturesList"></div>
+            <div class="pagination">
+                <button id="prevSignaturePage" onclick="changeSignaturePage(-1)">Previous</button>
+                <span id="signaturePageInfo">Page 1</span>
+                <button id="nextSignaturePage" onclick="changeSignaturePage(1)">Next</button>
+            </div>
         </div>
 
-        <!-- Blacklist Tab -->
-        <div id="blacklist" class="tab-content">
-            <div class="action-bar">
-                <input type="text" id="newIPInput" placeholder="IP Address">
-                <input type="text" id="newIPReason" placeholder="Reason (optional)">
-                <button onclick="addToBlacklist()">Add IP</button>
-            </div>
-            <div id="blacklistList"></div>
-        </div>
     </div>
 
     <!-- Add/Edit Signature Modal -->
@@ -114,11 +143,6 @@
                 <input type="text" id="sigName" required>
                 <label>Pattern:</label>
                 <input type="text" id="sigPattern" required>
-                <label>Action:</label>
-                <select id="sigAction" required>
-                    <option value="alert">Alert</option>
-                    <option value="drop">Drop</option>
-                </select>
                 <label>Description:</label>
                 <textarea id="sigDescription"></textarea>
                 <label>
@@ -128,6 +152,19 @@
             </form>
         </div>
     </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 id="confirmTitle">Confirm Action</h2>
+            <p id="confirmMessage">Are you sure you want to proceed?</p>
+            <div id="confirmButtons" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn-secondary" id="cancelButton" onclick="closeConfirmModal()">Cancel</button>
+                <button class="btn-delete" id="confirmButton">Confirm</button>
+            </div>
+        </div>
+    </div>
+
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js"></script>

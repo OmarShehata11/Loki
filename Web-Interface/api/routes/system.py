@@ -17,30 +17,14 @@ router = APIRouter(prefix="/system", tags=["system"])
 async def get_system_status(
     db: AsyncSession = Depends(get_db)
 ):
-    """Get IDS system status."""
-    # Check if IDS process is running
-    ids_running = False
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-        try:
-            cmdline = proc.info.get('cmdline', [])
-            if cmdline and any('nfqueue_app.py' in str(arg) or 'run_ids_with_integration.py' in str(arg) for arg in cmdline):
-                ids_running = True
-                break
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-    
-    # Get blacklist size
-    blacklist = await crud.get_blacklist(db, active_only=True)
-    blacklist_size = len(blacklist)
-    
+    """Get system status."""
     # Get alerts count for last 24h
     yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
     alerts, _ = await crud.get_alerts(db, skip=0, limit=1, start_time=yesterday)
     alerts_count_24h = len(alerts) if alerts else 0
     
     return SystemStatus(
-        ids_running=ids_running,
-        blacklist_size=blacklist_size,
+        ids_running=False,  # No longer tracking IDS status
         alerts_count_24h=alerts_count_24h
     )
 
@@ -66,33 +50,12 @@ async def health_check(
 
 
 @router.post("/reload-signatures")
-async def reload_ids_signatures():
+async def reload_signatures():
     """
-    Reload IDS signatures from database.
-    Works with database-backed signature engine (run_ids_with_integration.py).
-    For YAML-based engine, syncs database -> YAML instead.
+    Reload signatures from database.
+    This endpoint is kept for API compatibility but does not interact with IDS.
     """
-    try:
-        # Try to reload from database (if using database signatures)
-        try:
-            from integration.db_signature_engine import db_signature_engine
-            count = db_signature_engine.reload_rules()
-            return {
-                "message": f"Reloaded {count} signatures from database",
-                "count": count,
-                "method": "database",
-                "note": "Signatures reloaded in memory - no restart needed!"
-            }
-        except Exception:
-            # Fallback to YAML sync (for YAML-based engine)
-            from integration.signature_manager import signature_manager
-            count = await signature_manager.sync_db_to_yaml_async()
-            return {
-                "message": f"Synced {count} signatures to YAML file",
-                "count": count,
-                "method": "yaml",
-                "yaml_file": signature_manager.yaml_file_path,
-                "note": "Restart IDS to use updated signatures"
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reloading signatures: {str(e)}")
+    raise HTTPException(
+        status_code=501,
+        detail="Signature reloading is not available. This is a standalone API without IDS integration."
+    )

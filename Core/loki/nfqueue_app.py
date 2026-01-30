@@ -5,7 +5,8 @@ from packet_parser import scan_packet
 from detectore_engine import PortScanningDetector
 from signature_engine import SignatureScanning
 from scapy.all import IP, Raw, ICMP
-from logger import logger  # my logger module
+from logger import logger, AlertType, AlertSubtype  # my logger module
+from logger import db_integration
 
 
 def process_packet(packet, IsInput, port_scanner, sig_scanner):
@@ -84,12 +85,14 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
             if analyze_result != 0:
                 if analyze_result == 1:
                     message = f"Port Scan Detected on {chain_name} chain"
+                    subtype = AlertSubtype.PORT_SCAN
                 else:
                     message = f"TCP Flood (DoS/DDoS) Detected on {chain_name} chain"
+                    subtype = AlertSubtype.TCP_FLOOD
 
                 # ALERT
                 logger.log_alert(
-                    alert_type="BEHAVIOR",
+                    alert_type=AlertType.BEHAVIOR,
                     src_ip= src_ip,
                     dst_ip= dst_ip,
                     src_port= src_port,
@@ -99,7 +102,8 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
                         "dst_ip": dst_ip,
                         "dst_port": dst_port,
                         "chain": chain_name
-                    }
+                    },
+                    subtype=subtype
                 )
 
         elif port == "UDP":
@@ -109,7 +113,7 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
             if analyze_result:
                 # ALERT:
                 logger.log_alert(
-                    alert_type="BEHAVIOR",
+                    alert_type=AlertType.BEHAVIOR,
                     src_ip=src_ip,
                     dst_ip= dst_ip,
                     src_port= src_port,
@@ -119,15 +123,16 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
                         "dst_ip": dst_ip,
                         "dst_port": dst_port,
                         "chain": chain_name
-                    }
+                    },
+                    subtype=AlertSubtype.UDP_FLOOD
                 )
 
         elif is_icmp and ip_layer[ICMP].type == 8 : # echo req
             analyze_result = port_scanner.analyze_icmp(dst_ip, raw_timestamp)
             if analyze_result:
-                # ALERT: Port Scan Detected
+                # ALERT: ICMP Flood Detected
                 logger.log_alert(
-                    alert_type="BEHAVIOR",
+                    alert_type=AlertType.BEHAVIOR,
                     src_ip=src_ip,
                     dst_ip= dst_ip,
                     src_port= src_port,
@@ -137,7 +142,8 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
                         "dst_ip": dst_ip,
                         "dst_port": dst_port,
                         "chain": chain_name
-                    }
+                    },
+                    subtype=AlertSubtype.ICMP_FLOOD
                 )
 
         else : # some other packet, we may just log it to type of packets in normal conditions
@@ -175,7 +181,7 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
             if RuleName: # Match Found
                 # ALERT: Signature Match
                 logger.log_alert(
-                    alert_type="SIGNATURE",
+                    alert_type=AlertType.SIGNATURE,
                     src_ip=src_ip,
                     dst_ip= dst_ip,
                     src_port= src_port,
@@ -183,9 +189,11 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
                     message=f"Signature Match: {RuleName}",
                     details={
                         "pattern": str(RulePattern),
-                        "action": "DROP" if Drop else "ALERT",
+                        "action": "ALERT",
                         "chain": chain_name
-                    }
+                    },
+                    subtype=None,  # Signatures don't have subtypes
+                    pattern=str(RulePattern)  # Store pattern for filtering
                 )
                 
                 # Check if we need to drop based on signature rule
@@ -233,10 +241,16 @@ def input_agent(sig_object):
 if __name__ == "__main__":
     logger.log_system_event("========== Starting LOKI IDS ==========", "INFO")
     
+    # Enable database integration first (needed for signature loading)
+    if db_integration.enable():
+        logger.log_system_event("Database integration enabled - alerts will be written to database", "INFO")
+    else:
+        logger.log_system_event("Database integration failed to enable", "WARNING")
+    
     # let's now create the 2 threads..
     try:
-        sig_object = SignatureScanning() # Load rules
-        logger.log_system_event("Signature rules loaded successfully", "INFO")
+        sig_object = SignatureScanning() # Load rules from database
+        logger.log_system_event("Signature rules loaded successfully from database", "INFO")
     except Exception as e:
         logger.log_system_event(f"Failed to load signatures: {e}", "ERROR")
         sig_object = None # Handle gracefully or exit

@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 import os
 
 from .models.database import init_db
-from .routes import alerts, signatures, blacklist, stats, system, websocket
+from .routes import alerts, signatures, stats, system, websocket
 
 # Create FastAPI app
 app = FastAPI(
@@ -29,7 +29,6 @@ app.add_middleware(
 # Include routers
 app.include_router(alerts.router, prefix="/api")
 app.include_router(signatures.router, prefix="/api")
-app.include_router(blacklist.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(websocket.router)

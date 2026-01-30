@@ -31,7 +31,10 @@ class Alert(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(String, nullable=False, index=True)
-    type = Column(String, nullable=False, index=True)  # SIGNATURE, BEHAVIOR, BLACKLIST
+    status = Column(String, index=True)  # STARTED, ONGOING, ENDED
+    type = Column(String, nullable=False, index=True)  # SIGNATURE, BEHAVIOR, SYSTEM
+    subtype = Column(String, index=True)  # PORT_SCAN, TCP_FLOOD, UDP_FLOOD, ICMP_FLOOD, etc.
+    pattern = Column(String, index=True)  # Pattern for SIGNATURE alerts (e.g., "UNION SELECT", "<script>")
     src_ip = Column(String, nullable=False, index=True)
     dst_ip = Column(String, index=True)
     src_port = Column(Integer)
@@ -40,23 +43,24 @@ class Alert(Base):
     details = Column(Text)  # JSON string
     severity = Column(String, default="MEDIUM")  # LOW, MEDIUM, HIGH, CRITICAL
     
+    # New fields for alert lifecycle tracking
+    duration_seconds = Column(String)  # For ONGOING alerts
+    packet_count = Column(Integer)  # For ONGOING alerts
+    attack_rate_pps = Column(String)  # For ONGOING alerts
+    total_duration_seconds = Column(String)  # For ENDED alerts
+    total_packets = Column(Integer)  # For ENDED alerts
+    average_rate_pps = Column(String)  # For ENDED alerts
+    first_seen = Column(String)  # For ENDED alerts
+    last_seen = Column(String)  # For ENDED alerts
+    
     __table_args__ = (
         Index('idx_timestamp', 'timestamp'),
         Index('idx_src_ip', 'src_ip'),
         Index('idx_type', 'type'),
+        Index('idx_status', 'status'),
+        Index('idx_subtype', 'subtype'),
+        Index('idx_pattern', 'pattern'),
     )
-
-
-class BlacklistEntry(Base):
-    """IP addresses in the blacklist."""
-    __tablename__ = "blacklist"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    ip_address = Column(String, unique=True, nullable=False, index=True)
-    added_at = Column(String, nullable=False)
-    added_by = Column(String, default="system")  # 'system' or 'user'
-    reason = Column(Text)
-    active = Column(Integer, default=1)  # 1 = active, 0 = removed
 
 
 class Signature(Base):
@@ -66,7 +70,7 @@ class Signature(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
     pattern = Column(Text, nullable=False)
-    action = Column(String, nullable=False)  # 'drop' or 'alert'
+    action = Column(String, nullable=False, default="alert")  # Only 'alert' now
     description = Column(Text)
     enabled = Column(Integer, default=1)  # 1 = enabled, 0 = disabled
     created_at = Column(String)

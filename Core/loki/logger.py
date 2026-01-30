@@ -4,6 +4,25 @@ import os
 import time
 from datetime import datetime
 from collections import defaultdict
+from enum import Enum
+
+# Import database integration
+from .db_integration import db_integration
+
+
+class AlertType(str, Enum):
+    """High-level alert types."""
+    SIGNATURE = "SIGNATURE"
+    BEHAVIOR = "BEHAVIOR"
+    SYSTEM = "SYSTEM"
+
+
+class AlertSubtype(str, Enum):
+    """Sub-categories for behavior alerts."""
+    PORT_SCAN = "PORT_SCAN"
+    TCP_FLOOD = "TCP_FLOOD"
+    UDP_FLOOD = "UDP_FLOOD"
+    ICMP_FLOOD = "ICMP_FLOOD"
 
 class LokiLogger:
     """
@@ -50,19 +69,30 @@ class LokiLogger:
         # Statistics
         self.suppressed_count = 0     # How many duplicate alerts we prevented
     
-    def log_alert(self, alert_type, src_ip, dst_ip, src_port, dst_port, message, details=None):
+    def log_alert(self, alert_type, src_ip, dst_ip, src_port, dst_port, message, details=None, subtype=None, pattern=None):
         """
         Logs an alert with smart deduplication.
         
         Args:
-            alert_type (str): "SIGNATURE", "BEHAVIOR", or "BLACKLIST".
+            alert_type (AlertType or str): "SIGNATURE", "BEHAVIOR", or "SYSTEM".
             src_ip (str): The attacker's IP address.
             dst_ip (str): The victim's IP address.
             src_port (int): Source port.
             dst_port (int): Destination port.
             message (str): A human-readable description (e.g., "Port Scan Detected").
             details (dict, optional): Extra data (e.g., ports scanned, payload snippet).
+            subtype (AlertSubtype or str, optional): Sub-category of alert (e.g., "PORT_SCAN", "TCP_FLOOD", "UDP_FLOOD", "ICMP_FLOOD").
+            pattern (str, optional): Pattern for SIGNATURE alerts (e.g., "UNION SELECT", "<script>").
         """
+        # Convert enum to string if needed
+        if isinstance(alert_type, AlertType):
+            alert_type = alert_type.value
+        if isinstance(subtype, AlertSubtype):
+            subtype = subtype.value
+        
+        # Extract pattern from details if not provided and it's a SIGNATURE alert
+        if pattern is None and alert_type == "SIGNATURE" and details and "pattern" in details:
+            pattern = details.get("pattern")
         # Create unique key for this type of alert
         # For port scans: group by (type, src_ip, dst_ip)
         # For floods: group by (type, src_ip, dst_ip, dst_port)
@@ -77,19 +107,21 @@ class LokiLogger:
         if alert_key not in self.active_alerts:
             # NEW ALERT - Log it!
             self._log_new_alert(alert_key, alert_type, src_ip, dst_ip, src_port, 
-                              dst_port, message, details, current_time)
+                              dst_port, message, details, current_time, subtype, pattern)
         else:
             # ONGOING ALERT - Handle smartly
             self._handle_ongoing_alert(alert_key, alert_type, src_ip, dst_ip, 
-                                       src_port, dst_port, message, details, current_time)
+                                       src_port, dst_port, message, details, current_time, subtype, pattern)
     
     def _log_new_alert(self, alert_key, alert_type, src_ip, dst_ip, src_port, 
-                       dst_port, message, details, timestamp):
+                       dst_port, message, details, timestamp, subtype=None, pattern=None):
         """Log the FIRST occurrence of an alert"""
         
         # Console Output - Emphasized for new attack
+        subtype_str = f" [{subtype}]" if subtype else ""
+        pattern_str = f" [Pattern: {pattern}]" if pattern else ""
         self.console_logger.warning(
-            f"🚨 [NEW] [{alert_type}] {src_ip}:{src_port} → {dst_ip}:{dst_port} - {message}"
+            f"🚨 [NEW] [{alert_type}]{subtype_str}{pattern_str} {src_ip}:{src_port} → {dst_ip}:{dst_port} - {message}"
         )
         
         # File Output
@@ -97,6 +129,8 @@ class LokiLogger:
             "timestamp": datetime.utcnow().isoformat(),
             "status": "STARTED",  # NEW field to track lifecycle
             "type": alert_type,
+            "subtype": subtype,  # Sub-category of alert (for BEHAVIOR)
+            "pattern": pattern,  # Pattern for SIGNATURE alerts
             "src_ip": src_ip,
             "src_port": src_port,
             "dst_ip": dst_ip,
@@ -107,6 +141,10 @@ class LokiLogger:
         
         self._write_to_file(record)
         
+        # Write to database if integration is enabled
+        if db_integration.enabled:
+            db_integration.insert_alert(record)
+        
         # Track this alert
         self.active_alerts[alert_key] = {
             'first_seen': timestamp,
@@ -116,11 +154,13 @@ class LokiLogger:
             'update_count': 0,
             'src_port': src_port,
             'dst_port': dst_port,
+            'subtype': subtype,
+            'pattern': pattern,
             'details': details or {}
         }
     
     def _handle_ongoing_alert(self, alert_key, alert_type, src_ip, dst_ip, 
-                             src_port, dst_port, message, details, timestamp):
+                             src_port, dst_port, message, details, timestamp, subtype=None, pattern=None):
         """Handle repeated alerts (ongoing attack)"""
         
         alert_state = self.active_alerts[alert_key]
@@ -132,6 +172,14 @@ class LokiLogger:
         # Merge new details with existing
         if details:
             alert_state['details'].update(details)
+        
+        # Store subtype if not already set
+        if subtype and 'subtype' not in alert_state:
+            alert_state['subtype'] = subtype
+        
+        # Store pattern if not already set
+        if pattern and 'pattern' not in alert_state:
+            alert_state['pattern'] = pattern
         
         # Check if we should log an update
         time_since_last_log = timestamp - alert_state['last_logged']
@@ -168,6 +216,8 @@ class LokiLogger:
             "timestamp": datetime.utcnow().isoformat(),
             "status": "ONGOING",
             "type": alert_type,
+            "subtype": alert_state.get('subtype'),
+            "pattern": alert_state.get('pattern'),
             "src_ip": src_ip,
             "src_port": src_port,
             "dst_ip": dst_ip,
@@ -180,6 +230,10 @@ class LokiLogger:
         }
         
         self._write_to_file(record)
+        
+        # Write to database if integration is enabled
+        if db_integration.enabled:
+            db_integration.insert_alert(record)
         
         # Update tracking
         alert_state['last_logged'] = timestamp
@@ -225,6 +279,8 @@ class LokiLogger:
             "timestamp": datetime.utcnow().isoformat(),
             "status": "ENDED",
             "type": alert_type,
+            "subtype": alert_state.get('subtype'),
+            "pattern": alert_state.get('pattern'),
             "src_ip": src_ip,
             "dst_ip": dst_ip,
             "src_port": alert_state.get('src_port', 0),
@@ -239,6 +295,10 @@ class LokiLogger:
         }
         
         self._write_to_file(record)
+        
+        # Write to database if integration is enabled
+        if db_integration.enabled:
+            db_integration.insert_alert(record)
     
     def _write_to_file(self, record):
         """Write JSON record to log file"""
@@ -269,12 +329,23 @@ class LokiLogger:
         
         record = {
             "timestamp": datetime.utcnow().isoformat(),
+            "status": None,  # SYSTEM events don't have status
             "type": "SYSTEM",
-            "level": level,
-            "message": message
+            "subtype": None,
+            "pattern": None,
+            "src_ip": "system",
+            "dst_ip": None,
+            "src_port": None,
+            "dst_port": None,
+            "message": message,
+            "details": {"level": level}
         }
         
         self._write_to_file(record)
+        
+        # Write to database if integration is enabled
+        if db_integration.enabled:
+            db_integration.insert_alert(record)
 
 # Create a singleton instance for easy import
 logger = LokiLogger()

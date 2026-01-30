@@ -1,0 +1,103 @@
+signatures:
+  # SQL Injection Detection
+  - name: "SQL Injection - Union Select"
+    pattern: "UNION SELECT"
+    action: "alert"
+    description: "Detects SQL injection attempts using UNION SELECT statements"
+
+  - name: "SQL Injection - Drop Table"
+    pattern: "DROP TABLE"
+    action: "alert"
+    description: "Detects dangerous SQL DROP TABLE commands"
+
+  - name: "SQL Injection - OR 1=1"
+    pattern: "OR 1=1"
+    action: "alert"
+    description: "Detects SQL injection attempts using OR 1=1 bypass"
+
+  # Path Traversal Attacks
+  - name: "Path Traversal - Etc Passwd"
+    pattern: "/etc/passwd"
+    action: "alert"
+    description: "Detects attempts to read /etc/passwd file"
+
+  - name: "Path Traversal - Windows Path"
+    pattern: "..\\..\\"
+    action: "alert"
+    description: "Detects Windows path traversal attempts"
+
+  - name: "Path Traversal - Directory Traversal"
+    pattern: "../"
+    action: "alert"
+    description: "Detects directory traversal attempts"
+
+  # XSS (Cross-Site Scripting) Detection
+  - name: "XSS - Script Tag"
+    pattern: "<script>"
+    action: "alert"
+    description: "Detects XSS attempts using script tags"
+
+  - name: "XSS - JavaScript Alert"
+    pattern: "javascript:alert"
+    action: "alert"
+    description: "Detects JavaScript alert XSS attempts"
+
+  - name: "XSS - OnError Event"
+    pattern: "onerror="
+    action: "alert"
+    description: "Detects XSS attempts using onerror event handlers"
+
+  # Command Injection
+  - name: "Command Injection - Semicolon"
+    pattern: "; /bin/"
+    action: "alert"
+    description: "Detects command injection attempts using semicolon"
+
+  - name: "Command Injection - Pipe"
+    pattern: "| /bin/"
+    action: "alert"
+    description: "Detects command injection attempts using pipe"
+
+  - name: "Command Injection - Backtick"
+    pattern: "`"
+    action: "alert"
+    description: "Detects potential command injection using backticks"
+
+  # File Upload Attacks
+  - name: "PHP File Upload"
+    pattern: ".php"
+    action: "alert"
+    description: "Detects PHP file upload attempts"
+
+  - name: "Executable File Upload"
+    pattern: ".exe"
+    action: "alert"
+    description: "Detects executable file upload attempts"
+
+  # Information Disclosure
+  - name: "Git Repository Access"
+    pattern: "/.git/"
+    action: "alert"
+    description: "Detects attempts to access Git repository files"
+
+  - name: "Backup File Access"
+    pattern: ".bak"
+    action: "alert"
+    description: "Detects attempts to access backup files"
+
+  # Authentication Bypass
+  - name: "Authentication Bypass - Admin"
+    pattern: "admin' OR '1'='1"
+    action: "alert"
+    description: "Detects SQL-based authentication bypass attempts"
+
+  - name: "Brute Force - Login Attempt"
+    pattern: "login.php"
+    action: "alert"
+    description: "Monitors login page access patterns"
+
+  # Test Signature
+  - name: "Test Attack Signature"
+    pattern: "ATTACK_TEST"
+    action: "alert"
+    description: "Test signature for validation and testing purposes"

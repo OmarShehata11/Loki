@@ -1,86 +1,65 @@
 # Signature detection engine
-# 
-# NOTE: This is the YAML-based engine (legacy/standalone mode).
-# 
-# When using database integration (recommended):
-#   - Use: Web-Interface/run_ids_with_integration.py
-#   - That script uses: Web-Interface/integration/db_signature_engine.py (database-backed)
-#   - This file is NOT used when running with integration
-#
-# This file is kept for:
-#   - Standalone YAML-only mode (no database)
-#   - Backward compatibility
-#   - Direct execution of Core/loki/nfqueue_app.py
-#
-import yaml
 import os
+import sys
+
+# Add Web-Interface to path to import database modules
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+web_interface_path = os.path.join(project_root, "Web-Interface")
+if web_interface_path not in sys.path:
+    sys.path.insert(0, web_interface_path)
+
+# Import db_integration from same directory
+from db_integration import db_integration
 
 
 class SignatureScanning:
     """
-    YAML-based signature engine (legacy/standalone mode).
+    Database-based signature engine.
     
-    This class loads signatures from YAML file.
-    
-    For database-backed signatures (recommended):
-        Use Web-Interface/run_ids_with_integration.py
-        which uses integration/db_signature_engine.py instead.
-    
-    This class is kept for:
-        - Standalone operation (no database)
-        - Backward compatibility
-        - Direct execution of nfqueue_app.py
+    This class loads signatures from the database.
     """
-    def __init__(self, yaml_file_path="../../Configs/test_yaml_file.yaml"):
+    def __init__(self):
         # the dict will be : RULE_ID -> (description, data, action, rule id)
         self.rule = {"TEST_RULE" : ("test malicious rule", b"ATTACK_TEST", True, "ID1 TEST_RULE")} # just for testing..
         self.rules = []
-        self.yaml_file_path = yaml_file_path
-        self.load_rules(yaml_file_path)
+        self.load_rules()
 
-    def load_rules(self, file_path=None):
+    def load_rules(self):
         """
-        Load rules from YAML file.
-        If file_path is None, uses the instance's yaml_file_path.
+        Load rules from database.
+        Only loads enabled signatures.
         """
-        if file_path is None:
-            file_path = self.yaml_file_path
-        
-        # Resolve relative path
-        if not os.path.isabs(file_path):
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            file_path = os.path.join(current_dir, file_path)
-        
         try:
-            with open(file_path, 'r') as f:
-                all_rules = yaml.safe_load(f)
-                #print("opening the file path is done.")
-
+            # Get enabled signatures from database
+            signatures = db_integration.get_signatures(enabled_only=True)
+            
             # Clear existing rules
             self.rules = []
             
-            # now we have all the rules organized as a dictionaries..
-            # let's add them to the rules variable
-            
-            for block in all_rules.get('signatures', []):
-               # print(f"current block is : {block}")
-                block['pattern_bytes'] = block['pattern'].encode('utf-8')
-                self.rules.append(block)
+            # Convert database signatures to rule format
+            for sig in signatures:
+                rule = {
+                    'name': sig['name'],
+                    'pattern': sig['pattern'],
+                    'pattern_bytes': sig['pattern'].encode('utf-8'),
+                    'action': sig['action'],
+                    'description': sig.get('description', '')
+                }
+                self.rules.append(rule)
 
-            print(f"[*] loading of the rules from {file_path} is done.")
-            print(f"[*] number of rules loaded is {len(self.rules)}.")
-           # print(f"the rules are : \n{self.rules}")
-           # print("================***==============")
+            print(f"[*] Loading of rules from database is done.")
+            print(f"[*] Number of rules loaded is {len(self.rules)}.")
 
         except Exception as e:
-            print(f"[!]ERROR while loading the yaml file: {e}")
+            print(f"[!] ERROR while loading signatures from database: {e}")
+            self.rules = []  # Ensure rules list is empty on error
     
     def reload_rules(self):
         """
-        Reload rules from the YAML file.
-        Useful when signatures are updated via web interface.
+        Reload rules from the database.
         """
-        print("[*] Reloading signatures from YAML file...")
+        print("[*] Reloading signatures from database...")
         self.load_rules()
         print(f"[*] Reloaded {len(self.rules)} signatures")
         return len(self.rules)
