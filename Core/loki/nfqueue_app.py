@@ -6,7 +6,7 @@ from detectore_engine import PortScanningDetector
 from signature_engine import SignatureScanning
 from scapy.all import IP, Raw, ICMP
 from logger import logger, AlertType, AlertSubtype  # my logger module
-from logger import db_integration
+from db_integration import db_integration
 
 
 def process_packet(packet, IsInput, port_scanner, sig_scanner):

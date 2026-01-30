@@ -7,7 +7,7 @@ from collections import defaultdict
 from enum import Enum
 
 # Import database integration
-from .db_integration import db_integration
+from db_integration import db_integration
 
 
 class AlertType(str, Enum):
