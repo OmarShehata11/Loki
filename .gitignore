@@ -32,3 +32,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 fix_venv.sh
+logs/loki_alerts.jsonl
+__pycache__/
+
