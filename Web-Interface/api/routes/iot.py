@@ -186,6 +186,46 @@ async def control_buzzer(
         raise HTTPException(status_code=500, detail="Failed to send buzzer command")
 
 
+@router.post("/devices/{device_id}/led")
+async def control_led(
+    device_id: str,
+    action: str,  # "on", "off", "auto"
+    db: AsyncSession = Depends(get_db)
+):
+    """Control LED on ESP32-1."""
+    if not MQTT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="MQTT client not available")
+    
+    if action not in ["on", "off", "auto"]:
+        raise HTTPException(status_code=400, detail="Action must be 'on', 'off', or 'auto'")
+    
+    client = get_mqtt_client()
+    if not client or not client.is_connected():
+        raise HTTPException(status_code=503, detail="MQTT broker not connected")
+    
+    # Send command
+    success = client.send_led_command(device_id, action)
+    
+    if success:
+        # Update device state in database
+        state = IoTDeviceState(
+            device_id=device_id,
+            state_key="led_state",
+            state_value=action,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        db.add(state)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": f"LED {action} command sent to {device_id}",
+            "action": action
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send LED command")
+
+
 @router.get("/devices/{device_id}/state")
 async def get_device_state(
     device_id: str,

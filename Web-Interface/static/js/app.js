@@ -928,10 +928,13 @@ function displayIoTDevices(devices) {
         const motionState = device.state?.motion_detected;
         const buzzerState = device.state?.buzzer_state;
         const alarmState = device.state?.alarm_enabled;
+        const ledState = device.state?.led_state;
         
         const motionDetected = motionState === 'true' || motionState === true;
         const buzzerOn = buzzerState === 'on' || buzzerState === 'ON';
         const alarmEnabled = alarmState === 'true' || alarmState === true;
+        const ledOn = ledState === 'on' || ledState === 'ON';
+        const ledAuto = ledState === 'auto' || ledState === 'AUTO';
         
         // Parse bulb state if available
         const bulbState = device.state?.bulb_state;
@@ -1012,6 +1015,19 @@ function displayIoTDevices(devices) {
                         <button onclick="controlAlarm('${device.device_id}', 'enable')" class="iot-btn iot-btn-success">Enable Alarm</button>
                         <button onclick="controlAlarm('${device.device_id}', 'disable')" class="iot-btn iot-btn-danger">Disable Alarm</button>
                         <button onclick="controlAlarm('${device.device_id}', 'test')" class="iot-btn iot-btn-primary">Test Alarm</button>
+                    </div>
+                    
+                    <h4>LED Control</h4>
+                    <div class="iot-status-display" style="margin-bottom: 15px;">
+                        <div class="iot-status-indicator ${ledOn ? 'active' : (ledAuto ? 'detected' : 'inactive')}"></div>
+                        <span class="iot-status-text ${ledOn ? 'active' : (ledAuto ? 'detected' : 'inactive')}">
+                            LED: ${ledOn ? 'ON' : (ledAuto ? 'AUTO' : 'OFF')}
+                        </span>
+                    </div>
+                    <div class="iot-button-group">
+                        <button onclick="controlLED('${device.device_id}', 'on')" class="iot-btn iot-btn-success">LED ON</button>
+                        <button onclick="controlLED('${device.device_id}', 'off')" class="iot-btn iot-btn-danger">LED OFF</button>
+                        <button onclick="controlLED('${device.device_id}', 'auto')" class="iot-btn iot-btn-secondary">LED AUTO</button>
                     </div>
                 </div>
             `;
@@ -1179,6 +1195,36 @@ async function controlBuzzer(deviceId, action, duration = 1000) {
     } catch (error) {
         console.error('[Buzzer] Error controlling buzzer:', error);
         showToast('Connection Error', `Failed to send buzzer command. Check MQTT connection.`, 'error');
+    }
+}
+
+async function controlLED(deviceId, action) {
+    console.log(`[LED] Control called for device: ${deviceId}, action: ${action}`);
+    
+    try {
+        const url = `${API_BASE}/iot/devices/${deviceId}/led?action=${action}`;
+        console.log(`[LED] API URL: ${url}`);
+        
+        const response = await fetch(url, {
+            method: 'POST'
+        });
+        
+        console.log(`[LED] Response status: ${response.status}`);
+        const data = await response.json();
+        console.log(`[LED] Response data:`, data);
+        
+        if (data.success) {
+            console.log(`[LED] ✓ Command sent successfully`);
+            const actionText = action.charAt(0).toUpperCase() + action.slice(1);
+            showToast('LED Command Sent', `LED ${actionText}`, 'success', 1500);
+            loadIoTDevices(); // Refresh device states immediately
+        } else {
+            console.error(`[LED] ✗ Command failed:`, data);
+            showToast('LED Command Failed', data.message || data.detail || 'Unknown error', 'error');
+        }
+    } catch (error) {
+        console.error('[LED] Error controlling LED:', error);
+        showToast('Connection Error', `Failed to send LED command. Check MQTT connection.`, 'error');
     }
 }
 

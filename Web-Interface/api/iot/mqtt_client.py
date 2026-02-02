@@ -240,6 +240,23 @@ class MQTTClient:
             logger.error(f"✗ Failed to publish buzzer command to {topic}")
         return result
     
+    def send_led_command(self, device_id: str, action: str) -> bool:
+        """Send LED control command to ESP32-1."""
+        topic = "rpi/broadcast"
+        payload = {
+            "device": device_id,
+            "command": "led_control",
+            "action": action,  # "on", "off", "auto"
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        logger.info(f"Sending LED command to {device_id}: action={action}")
+        result = self.publish(topic, payload)
+        if result:
+            logger.info(f"✓ LED command published successfully to {topic}")
+        else:
+            logger.error(f"✗ Failed to publish LED command to {topic}")
+        return result
+    
     def is_connected(self) -> bool:
         """Check if client is connected to broker."""
         return self.connected
