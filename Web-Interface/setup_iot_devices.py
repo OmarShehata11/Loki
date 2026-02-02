@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
 Setup script to register default IoT devices in the database.
-Run this after initializing the database to register ESP32 devices.
 """
 import asyncio
 import sys
 import os
 from datetime import datetime
 
-# Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from api.models.database import AsyncSessionLocal, IoTDevice

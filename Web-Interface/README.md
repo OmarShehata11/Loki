@@ -123,17 +123,17 @@ If you want to initialize the database manually (e.g., after pulling code), you 
 ```bash
 cd /path/to/Loki-IDS/Web-Interface
 
-# Activate virtual environment (if not already active)
-source venv/bin/activate
+# Use venv Python directly (recommended)
+venv/bin/python3 init_database.py
+```
 
-# Run the initialization script
+Or activate virtual environment first:
+```bash
+source venv/bin/activate
 python3 init_database.py
 ```
 
-Or using the virtual environment's Python directly:
-```bash
-venv/bin/python3 init_database.py
-```
+**Important:** Always use `venv/bin/python3` or activate the venv first. Using system `python3` directly will fail with import errors.
 
 ### Database Location
 

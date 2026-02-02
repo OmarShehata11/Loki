@@ -36,8 +36,12 @@ Devices must be registered before they appear in the web interface:
 
 ```bash
 cd Web-Interface
+
+# Use venv Python (required!)
 venv/bin/python3 setup_iot_devices.py
 ```
+
+**Important:** You must use `venv/bin/python3`. Using system `python3` will fail with import errors.
 
 This registers:
 - **ESP32-1**: Motion Sensor & Buzzer
