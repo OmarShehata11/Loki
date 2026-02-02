@@ -954,9 +954,11 @@ async function checkMQTTStatus() {
 }
 
 async function connectMQTT() {
-    // Try localhost first (since RPi is the AP), then fallback to common AP IPs
+    // Try localhost first (if web server is on same machine as MQTT broker)
+    // Then try common Raspberry Pi access point IPs
     const hosts = ['127.0.0.1', 'localhost', '10.0.0.1'];
     let connected = false;
+    let lastError = null;
     
     for (const host of hosts) {
         try {
@@ -972,15 +974,35 @@ async function connectMQTT() {
                 loadIoTDevices();
                 connected = true;
                 break;
+            } else {
+                lastError = data.detail || 'Connection failed';
             }
         } catch (error) {
             console.error(`Error connecting to ${host}:`, error);
+            lastError = error.message;
             continue;
         }
     }
     
     if (!connected) {
-        alert('Error connecting to MQTT broker. Make sure the broker is running on the Raspberry Pi.');
+        const rpiIp = prompt('Could not auto-connect. Enter Raspberry Pi IP address (where MQTT broker is running):', '10.0.0.1');
+        if (rpiIp) {
+            try {
+                const response = await fetch(`${API_BASE}/iot/mqtt/connect?host=${rpiIp}&port=1883`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert(`Successfully connected to MQTT broker at ${rpiIp}!`);
+                    checkMQTTStatus();
+                    loadIoTDevices();
+                } else {
+                    alert(`Failed to connect: ${data.detail || 'Unknown error'}\n\nMake sure:\n1. MQTT broker is running on Raspberry Pi\n2. IP address is correct\n3. Port 1883 is not blocked by firewall`);
+                }
+            } catch (error) {
+                alert(`Connection error: ${error.message}\n\nMake sure the Raspberry Pi IP is correct and MQTT broker is running.`);
+            }
+        }
     }
 }
 

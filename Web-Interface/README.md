@@ -11,6 +11,7 @@ A lightweight standalone web dashboard and API for managing security alerts and 
 - 🔌 **WebSocket Support**: Real-time alert streaming
 - 💾 **Database-Backed**: SQLite database for persistent storage
 - 🚀 **Standalone API**: RESTful API that can be integrated with external systems
+- 🏠 **IoT Device Control**: Control ESP32 devices (RGB LEDs, motion sensors, buzzers) via MQTT
 
 ## Quick Start
 
@@ -40,7 +41,7 @@ venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirements.txt
 ```
 
-**Note:** See [PYTHON313_SETUP.md](PYTHON313_SETUP.md) for complete Python 3.13.5 setup instructions on Raspberry Pi 5.
+**Note:** See [docs/PYTHON313_SETUP.md](docs/PYTHON313_SETUP.md) for complete Python 3.13.5 setup instructions on Raspberry Pi 5.
 
 ### 2. Start the Web Interface
 
@@ -645,6 +646,39 @@ This is a standalone web interface and API. It does not require or integrate wit
 - Add alerts via `POST /api/alerts`
 - Manage signatures via CRUD endpoints
 - Stream alerts via WebSocket at `WS /ws/alerts`
+
+## IoT Device Control
+
+The web interface includes IoT device control for ESP32 devices via MQTT:
+
+- **RGB LED Control**: Control NeoPixel LED strips
+- **Motion Sensor Monitoring**: Real-time motion detection
+- **Buzzer Control**: Audio alerts and notifications
+- **Alarm System**: Enable/disable alarm functionality
+
+**Quick Start:**
+1. Register devices: `venv/bin/python3 setup_iot_devices.py`
+2. Start web server: `./start_web_server.sh`
+3. Open "IoT Control" tab in dashboard
+
+**Documentation:**
+- [docs/IOT_GUIDE.md](docs/IOT_GUIDE.md) - Complete IoT guide
+- [docs/MQTT_TROUBLESHOOTING.md](docs/MQTT_TROUBLESHOOTING.md) - MQTT troubleshooting
+- [ESP32_FIRMWARE_REQUIREMENTS.md](ESP32_FIRMWARE_REQUIREMENTS.md) - ESP32 firmware requirements
+
+## Documentation
+
+All documentation is organized in the `docs/` directory:
+
+- **[docs/README.md](docs/README.md)** - Documentation index
+- **[docs/IOT_GUIDE.md](docs/IOT_GUIDE.md)** - Complete IoT device control guide
+- **[docs/MQTT_TROUBLESHOOTING.md](docs/MQTT_TROUBLESHOOTING.md)** - MQTT connection troubleshooting
+- **[docs/IOT_TESTING_GUIDE.md](docs/IOT_TESTING_GUIDE.md)** - Comprehensive testing guide
+- **[docs/TEST_IOT_STEP_BY_STEP.md](docs/TEST_IOT_STEP_BY_STEP.md)** - Step-by-step testing
+- **[docs/PYTHON313_SETUP.md](docs/PYTHON313_SETUP.md)** - Python 3.13.5 setup
+- **[docs/SETUP_RASPBERRY_PI.md](docs/SETUP_RASPBERRY_PI.md)** - Raspberry Pi setup
+- **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** - Database schema reference
+- **[ESP32_FIRMWARE_REQUIREMENTS.md](ESP32_FIRMWARE_REQUIREMENTS.md)** - ESP32 firmware requirements
 
 ## License
 

@@ -54,7 +54,27 @@ class MQTTClient:
     def _on_disconnect(self, client, userdata, rc):
         """Callback for when the client disconnects from the broker."""
         self.connected = False
-        logger.warning(f"Disconnected from MQTT broker. Return code: {rc}")
+        
+        # MQTT return codes
+        rc_messages = {
+            0: "Normal disconnection",
+            1: "Connection refused - incorrect protocol version",
+            2: "Connection refused - invalid client identifier",
+            3: "Connection refused - server unavailable",
+            4: "Connection refused - bad username or password",
+            5: "Connection refused - not authorised",
+            7: "Network error - connection lost or timeout",
+        }
+        
+        message = rc_messages.get(rc, f"Unknown error code: {rc}")
+        
+        if rc == 0:
+            logger.info(f"Disconnected from MQTT broker: {message}")
+        elif rc == 7:
+            logger.warning(f"Disconnected from MQTT broker. {message} (code: {rc})")
+            logger.warning("This usually indicates network connectivity issues. Will attempt to reconnect...")
+        else:
+            logger.error(f"Disconnected from MQTT broker. {message} (code: {rc})")
     
     def _on_message(self, client, userdata, msg):
         """Callback for when a message is received."""
@@ -104,15 +124,29 @@ class MQTTClient:
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
             
-            # Connect to broker
-            self.client.connect(self.broker_host, self.broker_port, 60)
+            # Set keepalive and connection timeout
+            # Keepalive: 60 seconds (send ping every 60s)
+            # Connection timeout: 30 seconds
+            self.client.connect(self.broker_host, self.broker_port, keepalive=60)
             
             # Start network loop in a separate thread
             self.client.loop_start()
             
-            # Wait a bit for connection
+            # Wait a bit longer for connection to establish
             import time
-            time.sleep(1)
+            time.sleep(2)  # Increased from 1 to 2 seconds
+            
+            # Check connection state
+            if not self.connected:
+                # Check if there's a connection error
+                state = self.client._state
+                if state == mqtt.mqtt_cs_connect_async:
+                    logger.warning("Connection in progress, waiting longer...")
+                    time.sleep(2)
+                elif state == mqtt.mqtt_cs_disconnecting:
+                    logger.warning("Connection is disconnecting")
+                elif state == mqtt.mqtt_cs_new:
+                    logger.warning("Connection not started")
             
             return self.connected
             
@@ -196,6 +230,41 @@ class MQTTClient:
 
 # Global MQTT client instance
 _mqtt_client: Optional[MQTTClient] = None
+_reconnect_thread = None
+_reconnect_running = False
+
+
+def _start_auto_reconnect():
+    """Start background thread for automatic reconnection."""
+    global _reconnect_thread, _reconnect_running
+    
+    if _reconnect_running:
+        return
+    
+    _reconnect_running = True
+    
+    import threading
+    import time
+    
+    def reconnect_loop():
+        global _mqtt_client, _reconnect_running
+        
+        while _reconnect_running:
+            time.sleep(10)  # Check every 10 seconds
+            
+            if _mqtt_client and not _mqtt_client.is_connected():
+                logger.info("MQTT disconnected, attempting to reconnect...")
+                try:
+                    if _mqtt_client.connect():
+                        logger.info("Successfully reconnected to MQTT broker")
+                    else:
+                        logger.warning("Reconnection attempt failed, will retry in 10 seconds")
+                except Exception as e:
+                    logger.error(f"Error during reconnection: {e}")
+    
+    _reconnect_thread = threading.Thread(target=reconnect_loop, daemon=True)
+    _reconnect_thread.start()
+    logger.info("Started MQTT auto-reconnect thread")
 
 
 def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> Optional[MQTTClient]:
@@ -205,8 +274,17 @@ def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> 
     if not MQTT_AVAILABLE:
         return None
     
+    # If client exists but broker changed, recreate it
+    if _mqtt_client is not None:
+        if _mqtt_client.broker_host != broker_host or _mqtt_client.broker_port != broker_port:
+            logger.info(f"Broker changed, recreating MQTT client: {broker_host}:{broker_port}")
+            _mqtt_client.disconnect()
+            _mqtt_client = None
+    
     if _mqtt_client is None:
         _mqtt_client = MQTTClient(broker_host=broker_host, broker_port=broker_port)
+        # Start auto-reconnect thread
+        _start_auto_reconnect()
     
     return _mqtt_client
 
@@ -221,7 +299,8 @@ def initialize_mqtt(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> 
 
 def shutdown_mqtt():
     """Shutdown the MQTT client."""
-    global _mqtt_client
+    global _mqtt_client, _reconnect_running
+    _reconnect_running = False
     if _mqtt_client:
         _mqtt_client.disconnect()
         _mqtt_client = None
