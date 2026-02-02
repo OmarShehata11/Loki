@@ -116,14 +116,14 @@
         <!-- IoT Control Tab -->
         <div id="iot" class="tab-content">
             <div style="margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h2>IoT Device Control</h2>
-                    <div>
-                        <span id="mqttStatus" style="padding: 8px 16px; border-radius: 4px; background: #333; color: #fff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
+                    <h2 style="margin: 0;">IoT Device Control</h2>
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span id="mqttStatus" class="iot-status-badge" style="padding: 10px 18px; font-size: 0.9em;">
                             MQTT: Checking...
                         </span>
-                        <button onclick="connectMQTT()" style="margin-left: 10px;">Connect MQTT</button>
-                        <button onclick="loadIoTDevices()" style="margin-left: 10px;">Refresh</button>
+                        <button onclick="connectMQTT()" class="iot-btn iot-btn-primary">Connect MQTT</button>
+                        <button onclick="loadIoTDevices()" class="iot-btn iot-btn-secondary">Refresh</button>
                     </div>
                 </div>
             </div>
@@ -202,6 +202,21 @@
         </div>
     </div>
 
+    <!-- Custom Toast Notification Container -->
+    <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+    <!-- Custom Input Modal for MQTT IP -->
+    <div id="inputModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 id="inputModalTitle">Enter IP Address</h2>
+            <p id="inputModalMessage">Please enter the Raspberry Pi IP address where the MQTT broker is running:</p>
+            <input type="text" id="inputModalInput" placeholder="e.g., 10.0.0.1" style="width: 100%; padding: 10px; margin: 15px 0; background: #0f1419; border: 1px solid #2a2f35; border-radius: 4px; color: #e6e6e6; font-size: 14px;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn-secondary" onclick="closeInputModal()">Cancel</button>
+                <button class="btn-primary" id="inputModalConfirm">Confirm</button>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js"></script>

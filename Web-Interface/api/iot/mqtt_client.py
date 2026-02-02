@@ -187,18 +187,23 @@ class MQTTClient:
             logger.error(f"Error publishing MQTT message: {e}")
             return False
     
-    def send_rgb_command(self, device_id: str, color: str, brightness: int = 255, effect: str = "solid") -> bool:
-        """Send RGB LED control command to ESP32-2."""
+    def send_bulb_command(self, device_id: str, state: str, brightness: int = 255) -> bool:
+        """Send bulb control command to ESP32-2."""
         topic = "rpi/broadcast"
         payload = {
             "device": device_id,
-            "command": "rgb_control",
-            "color": color,  # Hex color like "#FF0000"
-            "brightness": brightness,
-            "effect": effect,  # "solid", "fade", "rainbow", etc.
+            "command": "bulb_control",
+            "state": state,  # "on" or "off"
+            "brightness": brightness,  # 0-255
             "timestamp": datetime.utcnow().isoformat()
         }
-        return self.publish(topic, payload)
+        logger.info(f"Sending bulb command to {device_id}: state={state}, brightness={brightness}")
+        result = self.publish(topic, payload)
+        if result:
+            logger.info(f"✓ Bulb command published successfully to {topic}")
+        else:
+            logger.error(f"✗ Failed to publish bulb command to {topic}")
+        return result
     
     def send_alarm_command(self, device_id: str, action: str) -> bool:
         """Send alarm control command to ESP32-1."""
@@ -209,7 +214,13 @@ class MQTTClient:
             "action": action,  # "enable", "disable", "test"
             "timestamp": datetime.utcnow().isoformat()
         }
-        return self.publish(topic, payload)
+        logger.info(f"Sending alarm command to {device_id}: action={action}")
+        result = self.publish(topic, payload)
+        if result:
+            logger.info(f"✓ Alarm command published successfully to {topic}")
+        else:
+            logger.error(f"✗ Failed to publish alarm command to {topic}")
+        return result
     
     def send_buzzer_command(self, device_id: str, action: str, duration: int = 1000) -> bool:
         """Send buzzer control command to ESP32-1."""
@@ -221,7 +232,13 @@ class MQTTClient:
             "duration": duration,  # Duration in milliseconds for beep
             "timestamp": datetime.utcnow().isoformat()
         }
-        return self.publish(topic, payload)
+        logger.info(f"Sending buzzer command to {device_id}: action={action}, duration={duration}ms")
+        result = self.publish(topic, payload)
+        if result:
+            logger.info(f"✓ Buzzer command published successfully to {topic}")
+        else:
+            logger.error(f"✗ Failed to publish buzzer command to {topic}")
+        return result
     
     def is_connected(self) -> bool:
         """Check if client is connected to broker."""

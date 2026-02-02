@@ -4,13 +4,59 @@ System status and control endpoints.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
-import psutil
 
 from ..models.database import get_db
 from ..models.schemas import SystemStatus, HealthResponse
 from ..models import crud
 
 router = APIRouter(prefix="/system", tags=["system"])
+
+
+def check_ids_running() -> bool:
+    """
+    Check if the IDS process is running.
+    Uses two reliable methods that work even for root/sudo processes:
+    1. systemctl service check (most reliable)
+    2. pgrep process check (works for all processes including root)
+    """
+    import subprocess
+    
+    # Method 1: Check systemd service status (most reliable, works for root processes)
+    try:
+        result = subprocess.run(
+            ['systemctl', 'is-active', '--quiet', 'loki'],
+            capture_output=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+        pass
+    
+    # Method 2: Use pgrep to find processes (works even for root processes)
+    # pgrep can see all processes regardless of user
+    try:
+        # Check for nfqueue_app.py process
+        result = subprocess.run(
+            ['pgrep', '-f', 'nfqueue_app.py'],
+            capture_output=True,
+            timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return True
+        
+        # Also check for 'nfqueue_app' without .py extension
+        result = subprocess.run(
+            ['pgrep', '-f', 'nfqueue_app'],
+            capture_output=True,
+            timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+        pass
+    
+    return False
 
 
 @router.get("/status", response_model=SystemStatus)
@@ -23,8 +69,11 @@ async def get_system_status(
     alerts, _ = await crud.get_alerts(db, skip=0, limit=1, start_time=yesterday)
     alerts_count_24h = len(alerts) if alerts else 0
     
+    # Check if IDS is actually running
+    ids_running = check_ids_running()
+    
     return SystemStatus(
-        ids_running=False,  # No longer tracking IDS status
+        ids_running=ids_running,
         alerts_count_24h=alerts_count_24h
     )
 

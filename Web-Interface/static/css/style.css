@@ -206,6 +206,441 @@ header h1 {
     border-left-color: #a78bfa;
 }
 
+/* IoT Control Styles */
+.iot-device-card {
+    background: #1a1f26;
+    border: 1px solid #2a2f35;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.iot-device-card:hover {
+    border-color: #4a9eff;
+    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.1);
+}
+
+.iot-device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #2a2f35;
+}
+
+.iot-device-title {
+    font-size: 1.5em;
+    margin: 0 0 8px 0;
+    color: #4a9eff;
+}
+
+.iot-device-info {
+    color: #888;
+    font-size: 0.9em;
+    margin: 4px 0;
+}
+
+.iot-status-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.iot-status-badge.online {
+    background: #10b981;
+    color: #fff;
+}
+
+.iot-status-badge.offline {
+    background: #6b7280;
+    color: #fff;
+}
+
+.iot-status-badge.enabled {
+    background: #10b981;
+    color: #fff;
+}
+
+.iot-status-badge.disabled {
+    background: #ef4444;
+    color: #fff;
+}
+
+.iot-control-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #2a2f35;
+}
+
+.iot-control-section h4 {
+    color: #4a9eff;
+    margin-bottom: 15px;
+    font-size: 1.1em;
+}
+
+.iot-status-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #0f1419;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #2a2f35;
+}
+
+.iot-status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #6b7280;
+    animation: pulse 2s infinite;
+}
+
+.iot-status-indicator.active {
+    background: #10b981;
+}
+
+.iot-status-indicator.inactive {
+    background: #6b7280;
+}
+
+.iot-status-indicator.detected {
+    background: #ef4444;
+    animation: pulse-fast 1s infinite;
+}
+
+@keyframes pulse-fast {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.iot-status-text {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.iot-status-text.active {
+    color: #10b981;
+}
+
+.iot-status-text.inactive {
+    color: #6b7280;
+}
+
+.iot-status-text.detected {
+    color: #ef4444;
+}
+
+.iot-button-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.iot-btn {
+    padding: 14px 28px;
+    font-size: 1em;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.iot-btn-primary {
+    background: #4a9eff;
+    color: #fff;
+}
+
+.iot-btn-primary:hover {
+    background: #3a8eef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(74, 158, 255, 0.3);
+}
+
+.iot-btn-primary:active {
+    transform: translateY(0);
+}
+
+.iot-btn-secondary {
+    background: #2a2f35;
+    color: #e6e6e6;
+    border: 1px solid #3a3f45;
+}
+
+.iot-btn-secondary:hover {
+    background: #3a3f45;
+    border-color: #4a4f55;
+    transform: translateY(-2px);
+}
+
+.iot-btn-secondary:active {
+    transform: translateY(0);
+}
+
+.iot-btn-success {
+    background: #10b981;
+    color: #fff;
+}
+
+.iot-btn-success:hover {
+    background: #0ea572;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.iot-btn-danger {
+    background: #ef4444;
+    color: #fff;
+}
+
+.iot-btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.iot-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.iot-rgb-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 20px;
+    background: #0f1419;
+    border-radius: 8px;
+    border: 1px solid #2a2f35;
+}
+
+.iot-color-picker {
+    width: 80px;
+    height: 50px;
+    border: 2px solid #2a2f35;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.iot-color-picker:hover {
+    border-color: #4a9eff;
+}
+
+.iot-brightness-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.iot-brightness-slider {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: #2a2f35;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.iot-brightness-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #4a9eff;
+    cursor: pointer;
+}
+
+.iot-brightness-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #4a9eff;
+    cursor: pointer;
+    border: none;
+}
+
+.iot-effect-select {
+    padding: 12px 16px;
+    background: #1a1f26;
+    border: 1px solid #2a2f35;
+    border-radius: 8px;
+    color: #e6e6e6;
+    font-size: 1em;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.iot-effect-select:hover {
+    border-color: #4a9eff;
+}
+
+.iot-effect-select:focus {
+    outline: none;
+    border-color: #4a9eff;
+}
+
+.iot-brightness-value {
+    min-width: 50px;
+    text-align: center;
+    font-weight: 600;
+    color: #4a9eff;
+}
+
+/* Toast Notification Styles */
+.toast {
+    min-width: 300px;
+    max-width: 400px;
+    padding: 16px 20px;
+    background: #1a1f26;
+    border: 1px solid #2a2f35;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideInRight 0.3s ease-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.toast::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #4a9eff;
+}
+
+.toast.success::before {
+    background: #10b981;
+}
+
+.toast.error::before {
+    background: #ef4444;
+}
+
+.toast.warning::before {
+    background: #f59e0b;
+}
+
+.toast.info::before {
+    background: #4a9eff;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.toast.fade-out {
+    animation: slideOutRight 0.3s ease-in forwards;
+}
+
+.toast-icon {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.toast.success .toast-icon {
+    background: #10b981;
+    color: #fff;
+}
+
+.toast.error .toast-icon {
+    background: #ef4444;
+    color: #fff;
+}
+
+.toast.warning .toast-icon {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.toast.info .toast-icon {
+    background: #4a9eff;
+    color: #fff;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    color: #e6e6e6;
+    margin-bottom: 4px;
+    font-size: 0.95em;
+}
+
+.toast-message {
+    color: #b0b0b0;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.toast-close:hover {
+    color: #e6e6e6;
+}
+
 /* Status Badges */
 .status-badge {
     font-size: 10px;

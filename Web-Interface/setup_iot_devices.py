@@ -31,12 +31,12 @@ async def setup_default_devices():
             updated_at=datetime.utcnow().isoformat()
         )
         
-        # ESP32-2: RGB Controller
+        # ESP32-2: Bulb Controller
         device2 = IoTDevice(
             device_id="esp32-2",
-            device_type="rgb_controller",
-            name="ESP32 RGB Controller",
-            description="RGB LED strip controller with NeoPixel support",
+            device_type="rgb_controller",  # Keep same type for compatibility
+            name="ESP32 Bulb Controller",
+            description="Regular bulb controller with ON/OFF and brightness dimming",
             mqtt_topic="rpi/broadcast",
             enabled=1,
             created_at=datetime.utcnow().isoformat(),

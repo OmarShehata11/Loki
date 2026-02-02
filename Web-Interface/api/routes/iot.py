@@ -56,49 +56,52 @@ async def get_devices(db: AsyncSession = Depends(get_db)):
     return {"devices": device_list}
 
 
-@router.post("/devices/{device_id}/rgb")
-async def control_rgb(
+@router.post("/devices/{device_id}/bulb")
+async def control_bulb(
     device_id: str,
-    color: str,
+    state: str,  # "on" or "off"
     brightness: int = 255,
-    effect: str = "solid",
     db: AsyncSession = Depends(get_db)
 ):
-    """Control RGB LED on ESP32-2."""
+    """Control bulb on ESP32-2."""
     if not MQTT_AVAILABLE:
         raise HTTPException(status_code=503, detail="MQTT client not available")
+    
+    if state not in ["on", "off"]:
+        raise HTTPException(status_code=400, detail="State must be 'on' or 'off'")
+    
+    if brightness < 0 or brightness > 255:
+        raise HTTPException(status_code=400, detail="Brightness must be between 0 and 255")
     
     client = get_mqtt_client()
     if not client or not client.is_connected():
         raise HTTPException(status_code=503, detail="MQTT broker not connected")
     
     # Send command
-    success = client.send_rgb_command(device_id, color, brightness, effect)
+    success = client.send_bulb_command(device_id, state, brightness)
     
     if success:
         # Update device state in database
-        state = IoTDeviceState(
+        device_state = IoTDeviceState(
             device_id=device_id,
-            state_key="rgb_color",
+            state_key="bulb_state",
             state_value=json.dumps({
-                "color": color,
-                "brightness": brightness,
-                "effect": effect
+                "state": state,
+                "brightness": brightness
             }),
             timestamp=datetime.utcnow().isoformat()
         )
-        db.add(state)
+        db.add(device_state)
         await db.commit()
         
         return {
             "success": True,
-            "message": f"RGB command sent to {device_id}",
-            "color": color,
-            "brightness": brightness,
-            "effect": effect
+            "message": f"Bulb command sent to {device_id}",
+            "state": state,
+            "brightness": brightness
         }
     else:
-        raise HTTPException(status_code=500, detail="Failed to send RGB command")
+        raise HTTPException(status_code=500, detail="Failed to send bulb command")
 
 
 @router.post("/devices/{device_id}/alarm")

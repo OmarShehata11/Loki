@@ -7,6 +7,107 @@ let signaturePageSize = 20;
 let alertsChart = null;
 let chartData = {};  // Store original chart data for filtering
 
+// Input Modal System
+let inputModalCallback = null;
+
+function showInputModal(title, message, defaultValue, callback) {
+    const modal = document.getElementById('inputModal');
+    const titleEl = document.getElementById('inputModalTitle');
+    const messageEl = document.getElementById('inputModalMessage');
+    const inputEl = document.getElementById('inputModalInput');
+    const confirmBtn = document.getElementById('inputModalConfirm');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    inputEl.value = defaultValue || '';
+    inputModalCallback = callback;
+    
+    modal.style.display = 'block';
+    
+    // Focus input and select text
+    setTimeout(() => {
+        inputEl.focus();
+        inputEl.select();
+    }, 100);
+    
+    // Handle Enter key
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            confirmInput();
+        } else if (e.key === 'Escape') {
+            closeInputModal();
+        }
+    };
+    
+    inputEl.onkeydown = handleKeyPress;
+    confirmBtn.onclick = confirmInput;
+}
+
+function confirmInput() {
+    const inputEl = document.getElementById('inputModalInput');
+    const value = inputEl.value;
+    closeInputModal();
+    
+    if (inputModalCallback) {
+        inputModalCallback(value);
+        inputModalCallback = null;
+    }
+}
+
+function closeInputModal() {
+    const modal = document.getElementById('inputModal');
+    modal.style.display = 'none';
+    inputModalCallback = null;
+}
+
+// Close input modal when clicking outside
+document.addEventListener('click', function(event) {
+    const inputModal = document.getElementById('inputModal');
+    if (event.target == inputModal) {
+        closeInputModal();
+    }
+});
+
+// Toast Notification System
+function showToast(title, message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Icon based on type
+    let icon = 'ℹ';
+    if (type === 'success') icon = '✓';
+    else if (type === 'error') icon = '✗';
+    else if (type === 'warning') icon = '⚠';
+    
+    toast.innerHTML = `
+        <div class="toast-icon">${icon}</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            ${message ? `<div class="toast-message">${message}</div>` : ''}
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }, duration);
+    }
+    
+    return toast;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
@@ -31,11 +132,15 @@ function setupTabs() {
             btn.classList.add('active');
             document.getElementById(tab).classList.add('active');
             
+            // Stop auto-refresh when switching away from IoT tab
+            stopIoTAutoRefresh();
+            
             if (tab === 'alerts') loadAlerts();
             if (tab === 'signatures') loadSignatures();
             if (tab === 'iot') {
                 loadIoTDevices();
                 checkMQTTStatus();
+                startIoTAutoRefresh(); // Start auto-refresh for IoT tab
             }
         });
     });
@@ -545,7 +650,7 @@ async function editSignature(id) {
         document.getElementById('addSignatureModal').style.display = 'block';
     } catch (error) {
         console.error('Error loading signature:', error);
-        alert('Error loading signature details');
+        showToast('Error', 'Failed to load signature details', 'error');
     }
 }
 
@@ -583,7 +688,7 @@ document.getElementById('signatureForm').addEventListener('submit', async (e) =>
         loadSignatures();
     } catch (error) {
         console.error('Error saving signature:', error);
-        alert('Error saving signature: ' + (error.message || 'Unknown error'));
+        showToast('Error', 'Failed to save signature: ' + (error.message || 'Unknown error'), 'error');
     }
 });
 
@@ -610,7 +715,7 @@ async function toggleSignature(id, enabled) {
         loadSignatures();
     } catch (error) {
         console.error('Error toggling signature:', error);
-        alert('Error toggling signature: ' + (error.message || 'Unknown error'));
+        showToast('Error', 'Failed to toggle signature: ' + (error.message || 'Unknown error'), 'error');
         // Reload to reset toggle state on error
         loadSignatures();
     }
@@ -638,7 +743,7 @@ async function handleYamlFileUpload(event) {
     
     // Validate file type
     if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml')) {
-        alert('Please select a YAML file (.yaml or .yml)');
+        showToast('Invalid File', 'Please select a YAML file (.yaml or .yml)', 'warning');
         event.target.value = ''; // Reset file input
         return;
     }
@@ -768,11 +873,16 @@ function setupWebSocket() {
 }
 
 // IoT Device Control Functions
+let iotRefreshInterval = null;
+
 async function loadIoTDevices() {
     try {
         const response = await fetch(`${API_BASE}/iot/devices`);
         const data = await response.json();
         displayIoTDevices(data.devices);
+        
+        // Also check MQTT status
+        checkMQTTStatus();
     } catch (error) {
         console.error('Error loading IoT devices:', error);
         document.getElementById('iotDevicesList').innerHTML = 
@@ -780,11 +890,33 @@ async function loadIoTDevices() {
     }
 }
 
+// Auto-refresh IoT devices every 3 seconds when on IoT tab
+function startIoTAutoRefresh() {
+    if (iotRefreshInterval) {
+        clearInterval(iotRefreshInterval);
+    }
+    
+    // Check if we're on the IoT tab
+    const iotTab = document.getElementById('iot');
+    if (iotTab && iotTab.classList.contains('active')) {
+        iotRefreshInterval = setInterval(() => {
+            loadIoTDevices();
+        }, 3000); // Refresh every 3 seconds
+    }
+}
+
+function stopIoTAutoRefresh() {
+    if (iotRefreshInterval) {
+        clearInterval(iotRefreshInterval);
+        iotRefreshInterval = null;
+    }
+}
+
 function displayIoTDevices(devices) {
     const container = document.getElementById('iotDevicesList');
     
     if (!devices || devices.length === 0) {
-        container.innerHTML = '<div class="alert-item">No IoT devices registered. Devices will appear here when connected.</div>';
+        container.innerHTML = '<div class="iot-device-card"><p style="text-align: center; color: #888;">No IoT devices registered. Devices will appear here when connected.</p></div>';
         return;
     }
     
@@ -792,66 +924,122 @@ function displayIoTDevices(devices) {
         const deviceType = device.device_type;
         let controls = '';
         
+        // Get device states
+        const motionState = device.state?.motion_detected;
+        const buzzerState = device.state?.buzzer_state;
+        const alarmState = device.state?.alarm_enabled;
+        
+        const motionDetected = motionState === 'true' || motionState === true;
+        const buzzerOn = buzzerState === 'on' || buzzerState === 'ON';
+        const alarmEnabled = alarmState === 'true' || alarmState === true;
+        
+        // Parse bulb state if available
+        const bulbState = device.state?.bulb_state;
+        let bulbOn = false;
+        let currentBrightness = 255;
+        if (bulbState) {
+            try {
+                const bulb = typeof bulbState === 'string' ? JSON.parse(bulbState) : bulbState;
+                bulbOn = (bulb.state === 'on' || bulb.state === 'ON');
+                currentBrightness = bulb.brightness || 255;
+            } catch (e) {
+                console.error('Error parsing bulb state:', e);
+            }
+        }
+        
         if (deviceType === 'rgb_controller' || device.device_id === 'esp32-2') {
-            // RGB LED Control
+            // Bulb Control (changed from RGB to regular bulb)
             controls = `
-                <div style="margin-top: 15px;">
-                    <h4>RGB LED Control</h4>
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <input type="color" id="rgbColor_${device.device_id}" value="#FF0000" style="width: 60px; height: 40px;">
-                        <input type="range" id="rgbBrightness_${device.device_id}" min="0" max="255" value="255" 
-                               oninput="document.getElementById('brightnessValue_${device.device_id}').textContent = this.value">
-                        <span>Brightness: <span id="brightnessValue_${device.device_id}">255</span></span>
-                        <select id="rgbEffect_${device.device_id}">
-                            <option value="solid">Solid</option>
-                            <option value="fade">Fade</option>
-                            <option value="rainbow">Rainbow</option>
-                            <option value="blink">Blink</option>
-                        </select>
-                        <button onclick="controlRGB('${device.device_id}')" class="btn-primary">Apply</button>
+                <div class="iot-control-section">
+                    <h4>Bulb Control</h4>
+                    <div class="iot-status-display" style="margin-bottom: 15px;">
+                        <div class="iot-status-indicator ${bulbOn ? 'active' : 'inactive'}"></div>
+                        <span class="iot-status-text ${bulbOn ? 'active' : 'inactive'}">
+                            Bulb: ${bulbOn ? 'ON' : 'OFF'}
+                        </span>
+                    </div>
+                    <div class="iot-button-group" style="margin-bottom: 20px;">
+                        <button onclick="controlBulb('${device.device_id}', 'on')" class="iot-btn iot-btn-success">Turn ON</button>
+                        <button onclick="controlBulb('${device.device_id}', 'off')" class="iot-btn iot-btn-danger">Turn OFF</button>
+                    </div>
+                    <div class="iot-brightness-control" style="padding: 20px; background: #0f1419; border-radius: 8px; border: 1px solid #2a2f35;">
+                        <label style="color: #888; font-size: 0.9em; display: block; margin-bottom: 10px;">Brightness:</label>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <input type="range" id="bulbBrightness_${device.device_id}" min="0" max="255" value="${currentBrightness}" 
+                                   class="iot-brightness-slider"
+                                   oninput="document.getElementById('bulbBrightnessValue_${device.device_id}').textContent = this.value">
+                            <span class="iot-brightness-value" id="bulbBrightnessValue_${device.device_id}">${currentBrightness}</span>
+                            <button onclick="controlBulbBrightness('${device.device_id}')" class="iot-btn iot-btn-primary" style="min-width: 100px;">Set Brightness</button>
+                        </div>
                     </div>
                 </div>
             `;
         } else if (deviceType === 'motion_sensor' || device.device_id === 'esp32-1') {
             // Motion Sensor, Alarm & Buzzer Control
-            const motionDetected = device.state?.motion_detected === 'true' || device.state?.motion_detected === true;
             controls = `
-                <div style="margin-top: 15px;">
+                <div class="iot-control-section">
                     <h4>Motion Sensor Status</h4>
-                    <p style="margin-bottom: 15px;">Motion Detected: <strong style="color: ${motionDetected ? '#ff4444' : '#44ff44'}; font-size: 1.1em;">${motionDetected ? 'YES' : 'NO'}</strong></p>
+                    <div class="iot-status-display">
+                        <div class="iot-status-indicator ${motionDetected ? 'detected' : 'inactive'}"></div>
+                        <span class="iot-status-text ${motionDetected ? 'detected' : 'inactive'}">
+                            Motion: ${motionDetected ? 'DETECTED' : 'No Motion'}
+                        </span>
+                    </div>
                     
                     <h4>Buzzer Control</h4>
-                    <div style="display: flex; gap: 10px; margin-top: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
-                        <button onclick="controlBuzzer('${device.device_id}', 'on')" class="btn-primary">Buzzer ON</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'off')" class="btn-secondary">Buzzer OFF</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep')" class="btn-secondary">Beep (1s)</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 2000)" class="btn-secondary">Beep (2s)</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 500)" class="btn-secondary">Beep (0.5s)</button>
+                    <div class="iot-status-display" style="margin-bottom: 15px;">
+                        <div class="iot-status-indicator ${buzzerOn ? 'active' : 'inactive'}"></div>
+                        <span class="iot-status-text ${buzzerOn ? 'active' : 'inactive'}">
+                            Buzzer: ${buzzerOn ? 'ON' : 'OFF'}
+                        </span>
+                    </div>
+                    <div class="iot-button-group">
+                        <button onclick="controlBuzzer('${device.device_id}', 'on')" class="iot-btn iot-btn-success">Buzzer ON</button>
+                        <button onclick="controlBuzzer('${device.device_id}', 'off')" class="iot-btn iot-btn-danger">Buzzer OFF</button>
+                        <button onclick="controlBuzzer('${device.device_id}', 'beep')" class="iot-btn iot-btn-secondary">Beep (1s)</button>
+                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 2000)" class="iot-btn iot-btn-secondary">Beep (2s)</button>
+                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 500)" class="iot-btn iot-btn-secondary">Beep (0.5s)</button>
                     </div>
                     
                     <h4>Alarm System Control</h4>
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <button onclick="controlAlarm('${device.device_id}', 'enable')" class="btn-primary">Enable Alarm</button>
-                        <button onclick="controlAlarm('${device.device_id}', 'disable')" class="btn-secondary">Disable Alarm</button>
-                        <button onclick="controlAlarm('${device.device_id}', 'test')" class="btn-secondary">Test Alarm</button>
+                    <div class="iot-status-display" style="margin-bottom: 15px;">
+                        <div class="iot-status-indicator ${alarmEnabled ? 'active' : 'inactive'}"></div>
+                        <span class="iot-status-text ${alarmEnabled ? 'active' : 'inactive'}">
+                            Alarm: ${alarmEnabled ? 'ENABLED' : 'DISABLED'}
+                        </span>
+                    </div>
+                    <div class="iot-button-group">
+                        <button onclick="controlAlarm('${device.device_id}', 'enable')" class="iot-btn iot-btn-success">Enable Alarm</button>
+                        <button onclick="controlAlarm('${device.device_id}', 'disable')" class="iot-btn iot-btn-danger">Disable Alarm</button>
+                        <button onclick="controlAlarm('${device.device_id}', 'test')" class="iot-btn iot-btn-primary">Test Alarm</button>
                     </div>
                 </div>
             `;
         }
         
+        // Determine online status (if last_seen is recent, consider online)
+        const isOnline = device.last_seen ? (Date.now() - new Date(device.last_seen).getTime()) < 60000 : false;
+        const statusClass = isOnline ? 'online' : 'offline';
+        const statusText = isOnline ? 'Online' : 'Offline';
+        
         return `
-            <div class="alert-item" style="padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+            <div class="iot-device-card">
+                <div class="iot-device-header">
                     <div>
-                        <h3 style="margin: 0 0 10px 0;">${device.name || device.device_id}</h3>
-                        <p style="color: #888; margin: 5px 0;">Type: ${device.device_type}</p>
-                        <p style="color: #888; margin: 5px 0;">Device ID: ${device.device_id}</p>
-                        ${device.description ? `<p style="color: #aaa; margin: 5px 0;">${device.description}</p>` : ''}
-                        ${device.last_seen ? `<p style="color: #666; margin: 5px 0; font-size: 0.9em;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : ''}
+                        <h3 class="iot-device-title">${device.name || device.device_id}</h3>
+                        <p class="iot-device-info">Type: ${device.device_type}</p>
+                        <p class="iot-device-info">Device ID: ${device.device_id}</p>
+                        ${device.description ? `<p class="iot-device-info">${device.description}</p>` : ''}
+                        ${device.last_seen ? `<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : ''}
                     </div>
-                    <span class="badge" style="background: ${device.enabled ? '#44ff44' : '#888'}">
-                        ${device.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
+                    <div>
+                        <span class="iot-status-badge ${device.enabled ? 'enabled' : 'disabled'}">
+                            ${device.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <span class="iot-status-badge ${statusClass}" style="margin-top: 8px; display: block;">
+                            ${statusText}
+                        </span>
+                    </div>
                 </div>
                 ${controls}
             </div>
@@ -859,73 +1047,138 @@ function displayIoTDevices(devices) {
     }).join('');
 }
 
-async function controlRGB(deviceId) {
-    const color = document.getElementById(`rgbColor_${deviceId}`).value;
-    const brightness = parseInt(document.getElementById(`rgbBrightness_${deviceId}`).value);
-    const effect = document.getElementById(`rgbEffect_${deviceId}`).value;
+async function controlBulb(deviceId, state) {
+    console.log(`[Bulb] Control called for device: ${deviceId}, state: ${state}`);
     
     try {
-        const response = await fetch(`${API_BASE}/iot/devices/${deviceId}/rgb?color=${encodeURIComponent(color)}&brightness=${brightness}&effect=${effect}`, {
+        // Get current brightness or use default
+        const brightnessInput = document.getElementById(`bulbBrightness_${deviceId}`);
+        const brightness = brightnessInput ? parseInt(brightnessInput.value) : 255;
+        
+        const url = `${API_BASE}/iot/devices/${deviceId}/bulb?state=${state}&brightness=${brightness}`;
+        console.log(`[Bulb] API URL: ${url}`);
+        
+        const response = await fetch(url, {
             method: 'POST'
         });
         
+        console.log(`[Bulb] Response status: ${response.status}`);
         const data = await response.json();
+        console.log(`[Bulb] Response data:`, data);
         
         if (data.success) {
-            alert(`RGB command sent successfully to ${deviceId}`);
-            loadIoTDevices(); // Refresh device states
+            console.log(`[Bulb] ✓ Command sent successfully`);
+            showToast('Bulb Command Sent', `Bulb turned ${state.toUpperCase()}`, 'success', 2000);
+            loadIoTDevices(); // Refresh device states immediately
         } else {
-            alert(`Failed to send RGB command: ${data.message || 'Unknown error'}`);
+            console.error(`[Bulb] ✗ Command failed:`, data);
+            showToast('Bulb Command Failed', data.message || data.detail || 'Unknown error', 'error');
         }
     } catch (error) {
-        console.error('Error controlling RGB:', error);
-        alert('Error sending RGB command. Check MQTT connection.');
+        console.error('[Bulb] Error controlling bulb:', error);
+        showToast('Connection Error', `Failed to send bulb command. Check MQTT connection.`, 'error');
+    }
+}
+
+async function controlBulbBrightness(deviceId) {
+    console.log(`[Bulb] Brightness control called for device: ${deviceId}`);
+    
+    const brightnessInput = document.getElementById(`bulbBrightness_${deviceId}`);
+    
+    if (!brightnessInput) {
+        console.error(`[Bulb] Missing brightness input for device ${deviceId}`);
+        showToast('Error', 'Brightness control not found. Please refresh the page.', 'error');
+        return;
+    }
+    
+    const brightness = parseInt(brightnessInput.value);
+    
+    console.log(`[Bulb] Sending brightness command - Brightness: ${brightness}`);
+    
+    try {
+        // When setting brightness, turn bulb ON if it's not already on
+        const url = `${API_BASE}/iot/devices/${deviceId}/bulb?state=on&brightness=${brightness}`;
+        console.log(`[Bulb] API URL: ${url}`);
+        
+        const response = await fetch(url, {
+            method: 'POST'
+        });
+        
+        console.log(`[Bulb] Response status: ${response.status}`);
+        const data = await response.json();
+        console.log(`[Bulb] Response data:`, data);
+        
+        if (data.success) {
+            console.log(`[Bulb] ✓ Brightness command sent successfully`);
+            showToast('Brightness Set', `Brightness: ${brightness}%`, 'success', 2000);
+            loadIoTDevices(); // Refresh device states immediately
+        } else {
+            console.error(`[Bulb] ✗ Command failed:`, data);
+            showToast('Brightness Command Failed', data.message || data.detail || 'Unknown error', 'error');
+        }
+    } catch (error) {
+        console.error('[Bulb] Error controlling bulb brightness:', error);
+        showToast('Connection Error', `Failed to send brightness command. Check MQTT connection.`, 'error');
     }
 }
 
 async function controlAlarm(deviceId, action) {
+    console.log(`[Alarm] Control called for device: ${deviceId}, action: ${action}`);
+    
     try {
-        const response = await fetch(`${API_BASE}/iot/devices/${deviceId}/alarm?action=${action}`, {
+        const url = `${API_BASE}/iot/devices/${deviceId}/alarm?action=${action}`;
+        console.log(`[Alarm] API URL: ${url}`);
+        
+        const response = await fetch(url, {
             method: 'POST'
         });
         
+        console.log(`[Alarm] Response status: ${response.status}`);
         const data = await response.json();
+        console.log(`[Alarm] Response data:`, data);
         
         if (data.success) {
-            alert(`Alarm ${action} command sent successfully to ${deviceId}`);
-            loadIoTDevices(); // Refresh device states
+            console.log(`[Alarm] ✓ Command sent successfully`);
+            const actionText = action.charAt(0).toUpperCase() + action.slice(1);
+            showToast('Alarm Command Sent', `Alarm ${actionText}`, 'success', 2000);
+            loadIoTDevices(); // Refresh device states immediately
         } else {
-            alert(`Failed to send alarm command: ${data.message || 'Unknown error'}`);
+            console.error(`[Alarm] ✗ Command failed:`, data);
+            showToast('Alarm Command Failed', data.message || data.detail || 'Unknown error', 'error');
         }
     } catch (error) {
-        console.error('Error controlling alarm:', error);
-        alert('Error sending alarm command. Check MQTT connection.');
+        console.error('[Alarm] Error controlling alarm:', error);
+        showToast('Connection Error', `Failed to send alarm command. Check MQTT connection.`, 'error');
     }
 }
 
 async function controlBuzzer(deviceId, action, duration = 1000) {
+    console.log(`[Buzzer] Control called for device: ${deviceId}, action: ${action}, duration: ${duration}`);
+    
     try {
-        const response = await fetch(`${API_BASE}/iot/devices/${deviceId}/buzzer?action=${action}&duration=${duration}`, {
+        const url = `${API_BASE}/iot/devices/${deviceId}/buzzer?action=${action}&duration=${duration}`;
+        console.log(`[Buzzer] API URL: ${url}`);
+        
+        const response = await fetch(url, {
             method: 'POST'
         });
         
+        console.log(`[Buzzer] Response status: ${response.status}`);
         const data = await response.json();
+        console.log(`[Buzzer] Response data:`, data);
         
         if (data.success) {
-            const message = duration ? `Buzzer ${action} (${duration}ms) command sent successfully` : `Buzzer ${action} command sent successfully`;
-            // Don't show alert for quick beeps, just log
-            if (action === 'beep' && duration <= 1000) {
-                console.log(message);
-            } else {
-                alert(message);
-            }
-            loadIoTDevices(); // Refresh device states
+            console.log(`[Buzzer] ✓ Command sent successfully`);
+            const actionText = action === 'beep' ? `Beep (${duration}ms)` : action.toUpperCase();
+            showToast('Buzzer Command Sent', actionText, 'success', 1500);
+            loadIoTDevices(); // Refresh device states immediately
         } else {
-            alert(`Failed to send buzzer command: ${data.message || 'Unknown error'}`);
+            console.error(`[Buzzer] ✗ Command failed:`, data);
+            showToast('Buzzer Command Failed', data.message || data.detail || 'Unknown error', 'error');
         }
     } catch (error) {
-        console.error('Error controlling buzzer:', error);
-        alert('Error sending buzzer command. Check MQTT connection.');
+        console.error('[Buzzer] Error controlling buzzer:', error);
+        showToast('Connection Error', `Failed to send buzzer command. Check MQTT connection.`, 'error');
     }
 }
 
@@ -937,19 +1190,16 @@ async function checkMQTTStatus() {
         const statusEl = document.getElementById('mqttStatus');
         if (data.connected) {
             statusEl.textContent = 'MQTT: Connected';
-            statusEl.style.background = '#44ff44';
-            statusEl.style.color = '#000';
+            statusEl.className = 'iot-status-badge online';
         } else {
             statusEl.textContent = `MQTT: ${data.available ? 'Disconnected' : 'Not Available'}`;
-            statusEl.style.background = data.available ? '#ffaa00' : '#ff4444';
-            statusEl.style.color = '#fff';
+            statusEl.className = 'iot-status-badge offline';
         }
     } catch (error) {
         console.error('Error checking MQTT status:', error);
         const statusEl = document.getElementById('mqttStatus');
         statusEl.textContent = 'MQTT: Error';
-        statusEl.style.background = '#ff4444';
-        statusEl.style.color = '#fff';
+        statusEl.className = 'iot-status-badge offline';
     }
 }
 
@@ -969,7 +1219,7 @@ async function connectMQTT() {
             const data = await response.json();
             
             if (data.success) {
-                alert(`Successfully connected to MQTT broker at ${host}!`);
+                showToast('MQTT Connected', `Successfully connected to broker at ${host}`, 'success');
                 checkMQTTStatus();
                 loadIoTDevices();
                 connected = true;
@@ -985,24 +1235,33 @@ async function connectMQTT() {
     }
     
     if (!connected) {
-        const rpiIp = prompt('Could not auto-connect. Enter Raspberry Pi IP address (where MQTT broker is running):', '10.0.0.1');
-        if (rpiIp) {
-            try {
-                const response = await fetch(`${API_BASE}/iot/mqtt/connect?host=${rpiIp}&port=1883`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-                if (data.success) {
-                    alert(`Successfully connected to MQTT broker at ${rpiIp}!`);
-                    checkMQTTStatus();
-                    loadIoTDevices();
+        // Show custom input modal instead of prompt
+        showInputModal(
+            'Enter MQTT Broker IP',
+            'Could not auto-connect. Enter Raspberry Pi IP address where the MQTT broker is running:',
+            '10.0.0.1',
+            async (rpiIp) => {
+                if (rpiIp && rpiIp.trim()) {
+                    try {
+                        const response = await fetch(`${API_BASE}/iot/mqtt/connect?host=${rpiIp.trim()}&port=1883`, {
+                            method: 'POST'
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast('MQTT Connected', `Successfully connected to broker at ${rpiIp}`, 'success');
+                            checkMQTTStatus();
+                            loadIoTDevices();
+                        } else {
+                            showToast('MQTT Connection Failed', `Failed to connect: ${data.detail || 'Unknown error'}\n\nMake sure:\n1. MQTT broker is running on Raspberry Pi\n2. IP address is correct\n3. Port 1883 is not blocked by firewall`, 'error', 6000);
+                        }
+                    } catch (error) {
+                        showToast('Connection Error', `Connection error: ${error.message}\n\nMake sure the Raspberry Pi IP is correct and MQTT broker is running.`, 'error', 6000);
+                    }
                 } else {
-                    alert(`Failed to connect: ${data.detail || 'Unknown error'}\n\nMake sure:\n1. MQTT broker is running on Raspberry Pi\n2. IP address is correct\n3. Port 1883 is not blocked by firewall`);
+                    showToast('Connection Cancelled', 'IP address is required', 'warning');
                 }
-            } catch (error) {
-                alert(`Connection error: ${error.message}\n\nMake sure the Raspberry Pi IP is correct and MQTT broker is running.`);
             }
-        }
+        );
     }
 }
 
