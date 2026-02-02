@@ -42,7 +42,23 @@
 
             <div class="charts-grid">
                 <div class="chart-card">
-                    <h3>Alerts by Type</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">Alerts by Type</h3>
+                        <div class="chart-filters" style="display: flex; gap: 15px; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+                                <input type="checkbox" class="chart-filter-checkbox" data-type="SIGNATURE" checked onchange="updateChartFilters()">
+                                <span style="color: #f87171;">Signature</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+                                <input type="checkbox" class="chart-filter-checkbox" data-type="BEHAVIOR" checked onchange="updateChartFilters()">
+                                <span style="color: #fbbf24;">Behavior</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+                                <input type="checkbox" class="chart-filter-checkbox" data-type="SYSTEM" checked onchange="updateChartFilters()">
+                                <span style="color: #a78bfa;">System</span>
+                            </label>
+                        </div>
+                    </div>
                     <canvas id="alertsByTypeChart"></canvas>
                 </div>
                 <div class="chart-card">

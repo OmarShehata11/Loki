@@ -5,6 +5,7 @@ let pageSize = 25;  // Default page size
 let currentSignaturePage = 1;
 let signaturePageSize = 20;
 let alertsChart = null;
+let chartData = {};  // Store original chart data for filtering
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,27 +86,87 @@ async function loadDashboard() {
 }
 
 function updateAlertsByTypeChart(data) {
+    // Store original data for filtering
+    chartData = { ...data };
+    
+    // Apply filters and update chart
+    updateChartFilters();
+}
+
+function updateChartFilters() {
     const ctx = document.getElementById('alertsByTypeChart');
     if (!ctx) return;
     
+    // Get checked filter types
+    const checkboxes = document.querySelectorAll('.chart-filter-checkbox');
+    const enabledTypes = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            enabledTypes.push(cb.dataset.type);
+        }
+    });
+    
+    // Filter data based on checkboxes
+    const filteredLabels = [];
+    const filteredValues = [];
+    const colorMap = {
+        'SIGNATURE': '#f87171',
+        'BEHAVIOR': '#fbbf24',
+        'SYSTEM': '#a78bfa'
+    };
+    const filteredColors = [];
+    
+    Object.keys(chartData).forEach(type => {
+        if (enabledTypes.includes(type)) {
+            filteredLabels.push(type);
+            filteredValues.push(chartData[type]);
+            filteredColors.push(colorMap[type] || '#888888');
+        }
+    });
+    
+    // Destroy existing chart if it exists
     if (alertsChart) {
         alertsChart.destroy();
     }
     
-    const labels = Object.keys(data);
-    const values = Object.values(data);
+    // If no types selected, show empty chart
+    if (filteredLabels.length === 0) {
+        alertsChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['No data'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['#444444']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#e6e6e6'
+                        }
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+        return;
+    }
     
+    // Create new chart with filtered data
     alertsChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: filteredLabels,
             datasets: [{
-                data: values,
-                backgroundColor: [
-                    '#f87171',
-                    '#fbbf24',
-                    '#a78bfa'
-                ]
+                data: filteredValues,
+                backgroundColor: filteredColors
             }]
         },
         options: {
