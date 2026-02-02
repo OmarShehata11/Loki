@@ -20,6 +20,7 @@
             <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
             <button class="tab-btn" data-tab="alerts">Alerts</button>
             <button class="tab-btn" data-tab="signatures">Signatures</button>
+            <button class="tab-btn" data-tab="iot">IoT Control</button>
         </nav>
 
         <!-- Dashboard Tab -->
@@ -93,6 +94,26 @@
                 <button id="prevPage" onclick="changePage(-1)">Previous</button>
                 <span id="pageInfo">Page 1</span>
                 <button id="nextPage" onclick="changePage(1)">Next</button>
+            </div>
+        </div>
+
+        <!-- IoT Control Tab -->
+        <div id="iot" class="tab-content">
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>IoT Device Control</h2>
+                    <div>
+                        <span id="mqttStatus" style="padding: 8px 16px; border-radius: 4px; background: #333; color: #fff;">
+                            MQTT: Checking...
+                        </span>
+                        <button onclick="connectMQTT()" style="margin-left: 10px;">Connect MQTT</button>
+                        <button onclick="loadIoTDevices()" style="margin-left: 10px;">Refresh</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="iotDevicesList" style="display: grid; gap: 20px;">
+                <!-- Devices will be loaded here -->
             </div>
         </div>
 

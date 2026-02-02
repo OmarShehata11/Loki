@@ -105,6 +105,49 @@ Open your browser:
 
 For detailed instructions on installing Python 3.13.5 on Raspberry Pi 5, see [PYTHON313_SETUP.md](PYTHON313_SETUP.md).
 
+## Database Setup
+
+### Automatic Initialization
+
+The database is **automatically created** when you start the web server. The `start_web_server.sh` script will:
+1. Create the virtual environment (if needed)
+2. Install dependencies
+3. Start the FastAPI server
+4. Initialize the database on first startup
+
+### Manual Initialization (Optional)
+
+If you want to initialize the database manually (e.g., after pulling code), you can run:
+
+```bash
+cd /path/to/Loki-IDS/Web-Interface
+
+# Activate virtual environment (if not already active)
+source venv/bin/activate
+
+# Run the initialization script
+python3 init_database.py
+```
+
+Or using the virtual environment's Python directly:
+```bash
+venv/bin/python3 init_database.py
+```
+
+### Database Location
+
+The SQLite database file is created at:
+```
+Web-Interface/loki_ids.db
+```
+
+### Database Schema
+
+The database contains three main tables:
+- **`alerts`**: Stores all IDS alerts and events
+- **`signatures`**: Stores detection signature rules
+- **`stats_cache`**: Cached statistics for performance
+
 ## Architecture
 
 ### Database-First Design

@@ -86,6 +86,42 @@ class StatsCache(Base):
     updated_at = Column(String)
 
 
+class IoTDevice(Base):
+    """IoT device registration and configuration."""
+    __tablename__ = "iot_devices"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(String, unique=True, nullable=False, index=True)  # e.g., "esp32-1", "esp32-2"
+    device_type = Column(String, nullable=False)  # "motion_sensor", "rgb_controller", etc.
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    mqtt_topic = Column(String)  # MQTT topic for this device
+    enabled = Column(Integer, default=1)  # 1 = enabled, 0 = disabled
+    last_seen = Column(String)  # Last time device was seen/heard from
+    created_at = Column(String)
+    updated_at = Column(String)
+    
+    __table_args__ = (
+        Index('idx_device_id', 'device_id'),
+        Index('idx_device_type', 'device_type'),
+    )
+
+
+class IoTDeviceState(Base):
+    """Current state of IoT devices."""
+    __tablename__ = "iot_device_states"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(String, nullable=False, index=True)
+    state_key = Column(String, nullable=False)  # e.g., "motion_detected", "rgb_color", "alarm_enabled"
+    state_value = Column(Text)  # JSON string or simple value
+    timestamp = Column(String, nullable=False, index=True)
+    
+    __table_args__ = (
+        Index('idx_device_id_timestamp', 'device_id', 'timestamp'),
+    )
+
+
 async def init_db():
     """Initialize database tables."""
     async with engine.begin() as conn:
