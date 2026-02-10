@@ -45,17 +45,20 @@ async def startup_event():
     try:
         from .iot import initialize_mqtt, MQTT_AVAILABLE
         if MQTT_AVAILABLE:
-            # Try to connect to MQTT broker (default: 127.0.0.1:1883 since RPi is the AP)
-            # Try localhost first, then common AP IPs
-            hosts = ["127.0.0.1", "localhost", "10.0.0.1"]
+            # Try to connect to MQTT broker
+            # Priority: 10.0.0.1 (Raspberry Pi AP), then localhost
+            hosts = ["10.0.0.1", "127.0.0.1", "localhost"]
             connected = False
             for host in hosts:
+                print(f"[*] Trying MQTT broker at {host}:1883...")
                 if initialize_mqtt(broker_host=host):
-                    print(f"[*] MQTT client connected to {host}:1883")
+                    print(f"[✓] MQTT client connected to {host}:1883")
                     connected = True
                     break
+                else:
+                    print(f"[!] Could not connect to {host}:1883")
             if not connected:
-                print("[!] MQTT broker not available (will retry on first use)")
+                print("[!] MQTT broker not available at startup (can connect manually from dashboard)")
         else:
             print("[!] MQTT library not installed (IoT features disabled)")
     except Exception as e:

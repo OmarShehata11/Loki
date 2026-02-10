@@ -1250,9 +1250,8 @@ async function checkMQTTStatus() {
 }
 
 async function connectMQTT() {
-    // Try localhost first (if web server is on same machine as MQTT broker)
-    // Then try common Raspberry Pi access point IPs
-    const hosts = ['127.0.0.1', 'localhost', '10.0.0.1'];
+    // Try the Raspberry Pi AP IP first, then localhost
+    const hosts = ['10.0.0.1', '127.0.0.1', 'localhost'];
     let connected = false;
     let lastError = null;
     

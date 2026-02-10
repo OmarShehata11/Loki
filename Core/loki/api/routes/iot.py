@@ -7,11 +7,13 @@ from sqlalchemy import select, text
 from datetime import datetime
 from typing import List, Optional
 import json
+import logging
 
 from ..models.database import get_db, IoTDevice, IoTDeviceState
 from ..iot import get_mqtt_client, MQTT_AVAILABLE
 from ..models import crud
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iot", tags=["iot"])
 
 
@@ -74,10 +76,16 @@ async def control_bulb(
         raise HTTPException(status_code=400, detail="Brightness must be between 0 and 255")
     
     client = get_mqtt_client()
-    if not client or not client.is_connected():
-        raise HTTPException(status_code=503, detail="MQTT broker not connected")
+    if not client:
+        raise HTTPException(status_code=503, detail="MQTT client not initialized. Try connecting first.")
+    
+    if not client.is_connected():
+        logger.warning("MQTT not connected, attempting to connect...")
+        if not client.connect():
+            raise HTTPException(status_code=503, detail="MQTT broker not connected. Please check the connection.")
     
     # Send command
+    logger.info(f"Sending bulb command to {device_id}: state={state}, brightness={brightness}")
     success = client.send_bulb_command(device_id, state, brightness)
     
     if success:
@@ -101,7 +109,7 @@ async def control_bulb(
             "brightness": brightness
         }
     else:
-        raise HTTPException(status_code=500, detail="Failed to send bulb command")
+        raise HTTPException(status_code=500, detail="Failed to send bulb command. Check MQTT broker connection.")
 
 
 @router.post("/devices/{device_id}/alarm")
@@ -118,10 +126,16 @@ async def control_alarm(
         raise HTTPException(status_code=400, detail="Action must be 'enable', 'disable', or 'test'")
     
     client = get_mqtt_client()
-    if not client or not client.is_connected():
-        raise HTTPException(status_code=503, detail="MQTT broker not connected")
+    if not client:
+        raise HTTPException(status_code=503, detail="MQTT client not initialized. Try connecting first.")
+    
+    if not client.is_connected():
+        logger.warning("MQTT not connected, attempting to connect...")
+        if not client.connect():
+            raise HTTPException(status_code=503, detail="MQTT broker not connected. Please check the connection.")
     
     # Send command
+    logger.info(f"Sending alarm command to {device_id}: action={action}")
     success = client.send_alarm_command(device_id, action)
     
     if success:
@@ -141,7 +155,7 @@ async def control_alarm(
             "action": action
         }
     else:
-        raise HTTPException(status_code=500, detail="Failed to send alarm command")
+        raise HTTPException(status_code=500, detail="Failed to send alarm command. Check MQTT broker connection.")
 
 
 @router.post("/devices/{device_id}/buzzer")
@@ -159,10 +173,16 @@ async def control_buzzer(
         raise HTTPException(status_code=400, detail="Action must be 'on', 'off', or 'beep'")
     
     client = get_mqtt_client()
-    if not client or not client.is_connected():
-        raise HTTPException(status_code=503, detail="MQTT broker not connected")
+    if not client:
+        raise HTTPException(status_code=503, detail="MQTT client not initialized. Try connecting first.")
+    
+    if not client.is_connected():
+        logger.warning("MQTT not connected, attempting to connect...")
+        if not client.connect():
+            raise HTTPException(status_code=503, detail="MQTT broker not connected. Please check the connection.")
     
     # Send command
+    logger.info(f"Sending buzzer command to {device_id}: action={action}, duration={duration}")
     success = client.send_buzzer_command(device_id, action, duration)
     
     if success:
@@ -183,7 +203,7 @@ async def control_buzzer(
             "duration": duration if action == "beep" else None
         }
     else:
-        raise HTTPException(status_code=500, detail="Failed to send buzzer command")
+        raise HTTPException(status_code=500, detail="Failed to send buzzer command. Check MQTT broker connection.")
 
 
 @router.post("/devices/{device_id}/led")
@@ -200,10 +220,16 @@ async def control_led(
         raise HTTPException(status_code=400, detail="Action must be 'on', 'off', or 'auto'")
     
     client = get_mqtt_client()
-    if not client or not client.is_connected():
-        raise HTTPException(status_code=503, detail="MQTT broker not connected")
+    if not client:
+        raise HTTPException(status_code=503, detail="MQTT client not initialized. Try connecting first.")
+    
+    if not client.is_connected():
+        logger.warning("MQTT not connected, attempting to connect...")
+        if not client.connect():
+            raise HTTPException(status_code=503, detail="MQTT broker not connected. Please check the connection.")
     
     # Send command
+    logger.info(f"Sending LED command to {device_id}: action={action}")
     success = client.send_led_command(device_id, action)
     
     if success:
@@ -223,7 +249,7 @@ async def control_led(
             "action": action
         }
     else:
-        raise HTTPException(status_code=500, detail="Failed to send LED command")
+        raise HTTPException(status_code=500, detail="Failed to send LED command. Check MQTT broker connection.")
 
 
 @router.get("/devices/{device_id}/state")
@@ -265,9 +291,11 @@ async def get_mqtt_status():
     
     client = get_mqtt_client()
     if client:
+        connected = client.is_connected()
+        logger.debug(f"MQTT status check: connected={connected}, broker={client.broker_host}:{client.broker_port}")
         return {
             "available": True,
-            "connected": client.is_connected(),
+            "connected": connected,
             "broker_host": client.broker_host,
             "broker_port": client.broker_port
         }
@@ -285,10 +313,14 @@ async def connect_mqtt(host: str = "127.0.0.1", port: int = 1883):
     if not MQTT_AVAILABLE:
         raise HTTPException(status_code=503, detail="MQTT library not installed")
     
+    logger.info(f"Received request to connect to MQTT broker at {host}:{port}")
+    
     from ..iot import initialize_mqtt
     success = initialize_mqtt(broker_host=host, broker_port=port)
     
     if success:
+        logger.info(f"Successfully connected to MQTT broker at {host}:{port}")
         return {"success": True, "message": f"Connected to MQTT broker at {host}:{port}"}
     else:
-        raise HTTPException(status_code=500, detail="Failed to connect to MQTT broker")
+        logger.error(f"Failed to connect to MQTT broker at {host}:{port}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to MQTT broker at {host}:{port}. Make sure the broker is running.")

@@ -1,6 +1,7 @@
 """
 MQTT Client for IoT Device Control
 Handles communication with ESP32 devices via MQTT broker
+Compatible with paho-mqtt 2.x API
 """
 import asyncio
 import json
@@ -10,16 +11,25 @@ from datetime import datetime
 
 try:
     import paho.mqtt.client as mqtt
+    from paho.mqtt.enums import CallbackAPIVersion, MQTTErrorCode
     MQTT_AVAILABLE = True
+    MQTT_V2 = True
 except ImportError:
-    MQTT_AVAILABLE = False
-    logging.warning("paho-mqtt not installed. IoT features will be disabled.")
+    try:
+        # Fallback for older paho-mqtt 1.x
+        import paho.mqtt.client as mqtt
+        MQTT_AVAILABLE = True
+        MQTT_V2 = False
+    except ImportError:
+        MQTT_AVAILABLE = False
+        MQTT_V2 = False
+        logging.warning("paho-mqtt not installed. IoT features will be disabled.")
 
 logger = logging.getLogger(__name__)
 
 
 class MQTTClient:
-    """Async MQTT client wrapper for IoT device communication."""
+    """MQTT client wrapper for IoT device communication. Compatible with paho-mqtt 2.x."""
     
     def __init__(
         self,
@@ -36,45 +46,46 @@ class MQTTClient:
         self.client: Optional[mqtt.Client] = None
         self.connected = False
         self.message_callbacks: Dict[str, Callable] = {}
-        self.loop = None
-        self.loop_thread = None
+        self._connection_lock = False
         
-    def _on_connect(self, client, userdata, flags, rc):
-        """Callback for when the client connects to the broker."""
-        if rc == 0:
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None):
+        """Callback for when the client connects to the broker (paho-mqtt 2.x API)."""
+        # Handle both paho-mqtt 1.x (rc as int) and 2.x (reason_code object)
+        if MQTT_V2:
+            success = reason_code == 0 or (hasattr(reason_code, 'is_failure') and not reason_code.is_failure)
+            rc_value = int(reason_code) if hasattr(reason_code, '__int__') else reason_code
+        else:
+            success = reason_code == 0
+            rc_value = reason_code
+            
+        if success:
             self.connected = True
             logger.info(f"Connected to MQTT broker at {self.broker_host}:{self.broker_port}")
-            # Subscribe to sensor topics
-            client.subscribe("esp32/sensor1")  # Motion sensor
-            client.subscribe("esp32/status")   # Device status
+            # Subscribe to sensor topics for receiving device status
+            client.subscribe("esp32/sensor1/status")  # Motion sensor status
+            client.subscribe("esp32/sensor2/status")  # RGB controller status
+            client.subscribe("esp32/+/status")        # All device status
+            logger.info("Subscribed to ESP32 device status topics")
         else:
             self.connected = False
-            logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
+            logger.error(f"Failed to connect to MQTT broker. Return code: {rc_value}")
     
-    def _on_disconnect(self, client, userdata, rc):
-        """Callback for when the client disconnects from the broker."""
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties=None):
+        """Callback for when the client disconnects from the broker (paho-mqtt 2.x API)."""
         self.connected = False
         
-        # MQTT return codes
-        rc_messages = {
-            0: "Normal disconnection",
-            1: "Connection refused - incorrect protocol version",
-            2: "Connection refused - invalid client identifier",
-            3: "Connection refused - server unavailable",
-            4: "Connection refused - bad username or password",
-            5: "Connection refused - not authorised",
-            7: "Network error - connection lost or timeout",
-        }
-        
-        message = rc_messages.get(rc, f"Unknown error code: {rc}")
-        
-        if rc == 0:
-            logger.info(f"Disconnected from MQTT broker: {message}")
-        elif rc == 7:
-            logger.warning(f"Disconnected from MQTT broker. {message} (code: {rc})")
-            logger.warning("This usually indicates network connectivity issues. Will attempt to reconnect...")
+        # Handle both paho-mqtt 1.x and 2.x
+        if MQTT_V2:
+            rc_value = int(reason_code) if hasattr(reason_code, '__int__') else reason_code
         else:
-            logger.error(f"Disconnected from MQTT broker. {message} (code: {rc})")
+            # In paho-mqtt 1.x, the signature is (client, userdata, rc)
+            # 'flags' is actually 'rc' in that case
+            rc_value = flags if isinstance(flags, int) else 0
+        
+        if rc_value == 0:
+            logger.info("Disconnected from MQTT broker: Normal disconnection")
+        else:
+            logger.warning(f"Disconnected from MQTT broker unexpectedly (code: {rc_value}). Will attempt to reconnect...")
     
     def _on_message(self, client, userdata, msg):
         """Callback for when a message is received."""
@@ -82,30 +93,22 @@ class MQTTClient:
             topic = msg.topic
             payload = msg.payload.decode('utf-8')
             
+            logger.debug(f"Received MQTT message on {topic}: {payload[:100]}...")
+            
             # Try to parse as JSON
             try:
                 data = json.loads(payload)
             except json.JSONDecodeError:
                 data = {"raw": payload}
             
-            # Store in database asynchronously (non-blocking)
-            self._store_message_async(topic, data)
-            
             # Call registered callbacks
             if topic in self.message_callbacks:
                 self.message_callbacks[topic](topic, data)
             else:
-                logger.debug(f"Received message on {topic}: {data}")
+                logger.debug(f"No callback registered for topic {topic}")
                 
         except Exception as e:
             logger.error(f"Error processing MQTT message: {e}")
-    
-    def _store_message_async(self, topic: str, data: dict):
-        """Store MQTT message in database asynchronously (non-blocking)."""
-        # This is called from MQTT callback thread, so we'll just log
-        # Database storage will be handled by API endpoints or background tasks
-        # to avoid threading issues with async database operations
-        logger.debug(f"Received MQTT message on {topic}: {data}")
     
     def register_callback(self, topic: str, callback: Callable):
         """Register a callback for a specific MQTT topic."""
@@ -118,55 +121,96 @@ class MQTTClient:
             logger.error("MQTT library not available")
             return False
         
+        # Prevent concurrent connection attempts
+        if self._connection_lock:
+            logger.warning("Connection already in progress")
+            return self.connected
+        
+        self._connection_lock = True
+        
         try:
-            self.client = mqtt.Client(client_id=self.client_id)
+            # Disconnect existing client if any
+            if self.client:
+                try:
+                    self.client.loop_stop()
+                    self.client.disconnect()
+                except:
+                    pass
+                self.client = None
+                self.connected = False
+            
+            # Create client with paho-mqtt 2.x API
+            if MQTT_V2:
+                self.client = mqtt.Client(
+                    callback_api_version=CallbackAPIVersion.VERSION2,
+                    client_id=self.client_id,
+                    clean_session=True
+                )
+            else:
+                # Fallback for paho-mqtt 1.x
+                self.client = mqtt.Client(client_id=self.client_id)
+            
+            # Set callbacks
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
             
-            # Set keepalive and connection timeout
-            # Keepalive: 60 seconds (send ping every 60s)
-            # Connection timeout: 30 seconds
+            # Enable automatic reconnection
+            self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+            
+            logger.info(f"Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
+            
+            # Connect with keepalive
             self.client.connect(self.broker_host, self.broker_port, keepalive=60)
             
-            # Start network loop in a separate thread
+            # Start network loop in background thread
             self.client.loop_start()
             
-            # Wait a bit longer for connection to establish
+            # Wait for connection to establish
             import time
-            time.sleep(2)  # Increased from 1 to 2 seconds
+            for i in range(30):  # Wait up to 3 seconds
+                if self.connected:
+                    logger.info("MQTT connection established successfully")
+                    return True
+                time.sleep(0.1)
             
-            # Check connection state
             if not self.connected:
-                # Check if there's a connection error
-                state = self.client._state
-                if state == mqtt.mqtt_cs_connect_async:
-                    logger.warning("Connection in progress, waiting longer...")
-                    time.sleep(2)
-                elif state == mqtt.mqtt_cs_disconnecting:
-                    logger.warning("Connection is disconnecting")
-                elif state == mqtt.mqtt_cs_new:
-                    logger.warning("Connection not started")
+                logger.warning(f"Connection timeout - broker at {self.broker_host}:{self.broker_port} may be unreachable")
             
             return self.connected
             
         except Exception as e:
             logger.error(f"Failed to connect to MQTT broker: {e}")
+            self.connected = False
             return False
+        finally:
+            self._connection_lock = False
     
     def disconnect(self):
         """Disconnect from the MQTT broker."""
         if self.client:
-            self.client.loop_stop()
-            self.client.disconnect()
-            self.connected = False
+            try:
+                self.client.loop_stop()
+                self.client.disconnect()
+            except Exception as e:
+                logger.warning(f"Error during disconnect: {e}")
+            finally:
+                self.connected = False
+                self.client = None
             logger.info("Disconnected from MQTT broker")
     
-    def publish(self, topic: str, payload: Dict[str, Any], qos: int = 0) -> bool:
+    def publish(self, topic: str, payload: Dict[str, Any], qos: int = 1) -> bool:
         """Publish a message to an MQTT topic."""
-        if not self.connected or not self.client:
-            logger.warning("MQTT client not connected. Cannot publish message.")
+        if not self.client:
+            logger.warning("MQTT client not initialized. Cannot publish message.")
             return False
+        
+        if not self.connected:
+            logger.warning("MQTT client not connected. Attempting to reconnect...")
+            # Try to reconnect
+            if not self.connect():
+                logger.error("Failed to reconnect. Cannot publish message.")
+                return False
         
         try:
             # Convert payload to JSON if it's a dict
@@ -175,12 +219,18 @@ class MQTTClient:
             else:
                 payload_str = str(payload)
             
+            logger.info(f"Publishing to {topic}: {payload_str}")
+            
             result = self.client.publish(topic, payload_str, qos=qos)
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.debug(f"Published to {topic}: {payload_str}")
+            
+            # Wait for publish to complete (with timeout)
+            result.wait_for_publish(timeout=5.0)
+            
+            if result.is_published():
+                logger.info(f"✓ Successfully published to {topic}")
                 return True
             else:
-                logger.error(f"Failed to publish to {topic}. Error code: {result.rc}")
+                logger.error(f"✗ Failed to publish to {topic} - message not confirmed")
                 return False
                 
         except Exception as e:
@@ -259,46 +309,18 @@ class MQTTClient:
     
     def is_connected(self) -> bool:
         """Check if client is connected to broker."""
-        return self.connected
+        if not self.client:
+            return False
+        # Use paho-mqtt's internal connection check if available
+        try:
+            return self.connected and self.client.is_connected()
+        except AttributeError:
+            # Fallback for older versions
+            return self.connected
 
 
 # Global MQTT client instance
 _mqtt_client: Optional[MQTTClient] = None
-_reconnect_thread = None
-_reconnect_running = False
-
-
-def _start_auto_reconnect():
-    """Start background thread for automatic reconnection."""
-    global _reconnect_thread, _reconnect_running
-    
-    if _reconnect_running:
-        return
-    
-    _reconnect_running = True
-    
-    import threading
-    import time
-    
-    def reconnect_loop():
-        global _mqtt_client, _reconnect_running
-        
-        while _reconnect_running:
-            time.sleep(10)  # Check every 10 seconds
-            
-            if _mqtt_client and not _mqtt_client.is_connected():
-                logger.info("MQTT disconnected, attempting to reconnect...")
-                try:
-                    if _mqtt_client.connect():
-                        logger.info("Successfully reconnected to MQTT broker")
-                    else:
-                        logger.warning("Reconnection attempt failed, will retry in 10 seconds")
-                except Exception as e:
-                    logger.error(f"Error during reconnection: {e}")
-    
-    _reconnect_thread = threading.Thread(target=reconnect_loop, daemon=True)
-    _reconnect_thread.start()
-    logger.info("Started MQTT auto-reconnect thread")
 
 
 def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> Optional[MQTTClient]:
@@ -306,35 +328,41 @@ def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> 
     global _mqtt_client
     
     if not MQTT_AVAILABLE:
+        logger.warning("MQTT library not available")
         return None
     
     # If client exists but broker changed, recreate it
     if _mqtt_client is not None:
         if _mqtt_client.broker_host != broker_host or _mqtt_client.broker_port != broker_port:
-            logger.info(f"Broker changed, recreating MQTT client: {broker_host}:{broker_port}")
+            logger.info(f"Broker changed from {_mqtt_client.broker_host}:{_mqtt_client.broker_port} to {broker_host}:{broker_port}")
             _mqtt_client.disconnect()
             _mqtt_client = None
     
     if _mqtt_client is None:
+        logger.info(f"Creating new MQTT client for {broker_host}:{broker_port}")
         _mqtt_client = MQTTClient(broker_host=broker_host, broker_port=broker_port)
-        # Start auto-reconnect thread
-        _start_auto_reconnect()
     
     return _mqtt_client
 
 
 def initialize_mqtt(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> bool:
     """Initialize and connect the MQTT client."""
+    logger.info(f"Initializing MQTT connection to {broker_host}:{broker_port}")
     client = get_mqtt_client(broker_host, broker_port)
     if client:
-        return client.connect()
+        success = client.connect()
+        if success:
+            logger.info(f"MQTT client successfully connected to {broker_host}:{broker_port}")
+        else:
+            logger.warning(f"MQTT client failed to connect to {broker_host}:{broker_port}")
+        return success
     return False
 
 
 def shutdown_mqtt():
     """Shutdown the MQTT client."""
-    global _mqtt_client, _reconnect_running
-    _reconnect_running = False
+    global _mqtt_client
+    logger.info("Shutting down MQTT client")
     if _mqtt_client:
         _mqtt_client.disconnect()
         _mqtt_client = None
