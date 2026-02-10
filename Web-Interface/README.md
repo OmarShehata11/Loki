@@ -1,138 +1,53 @@
-# Loki IDS - Web Interface (Static Frontend)
+# Web-Interface Directory (Deprecated)
 
-## Overview
+## ⚠️ This directory is no longer used
 
-This directory contains the **static frontend** for the Loki IDS Web Dashboard. It's a pure HTML/CSS/JavaScript client that communicates with the IDS Core API.
+**The static frontend has been moved to:** `Core/loki/api/static/`
 
-## Architecture
+## New Architecture (Simplified)
 
 ```
-┌──────────────────────────────────────┐
-│      IDS Core (Backend)              │
-│   ┌─────────────────────────┐        │
-│   │  FastAPI Server         │        │
-│   │  (port 8080)            │        │
-│   │  - Owns Database        │        │
-│   │  - Exposes REST API     │        │
-│   │  - Serves Static Files  │        │
-│   │  - WebSocket Updates    │        │
-│   └────────▲────────────────┘        │
-└────────────┼────────────────────────────┘
-             │
-             │ HTTP API
-             │
-   ┌─────────▼───────────┐
-   │  Web Interface      │
-   │  (Static Frontend)  │
-   │  - HTML/CSS/JS      │
-   │  - Dashboard UI     │
-   │  - IoT Controls     │
-   └─────────────────────┘
+Core/loki/
+├── api/
+│   ├── main.py           # FastAPI server
+│   ├── static/           # ← Frontend is now here
+│   │   ├── index.html
+│   │   ├── css/
+│   │   └── js/
+│   ├── models/           # Database models
+│   └── routes/           # API endpoints
+├── database/
+│   └── loki_ids.db       # SQLite database
+└── ...
 ```
 
-## Contents
+## Why the change?
 
-- **static/** - All static web assets
-  - `index.html` - Main dashboard page
-  - `css/` - Stylesheets
-  - `js/` - Client-side JavaScript
+Moving static files next to the API code:
+- ✅ **Eliminates path calculation complexity**
+- ✅ **Simpler deployment** - everything in one place
+- ✅ **No more path resolution errors**
+- ✅ **Easier to understand** - API and frontend together
 
-## How It Works
+## Accessing the Dashboard
 
-1. **IDS Core** runs the FastAPI server and serves these static files
-2. The **frontend** (this directory) makes API calls to the backend
-3. All data operations go through the API (no direct database access)
-4. Real-time updates via WebSocket connection
-
-## Access
-
-Once the system is running, access the dashboard at:
-
-**http://localhost:8080** (or your Raspberry Pi IP)
-
-## Starting the System
-
-This frontend is automatically served by the IDS Core. You don't need to start it separately.
-
+Start the system normally:
 ```bash
-# Start the complete system
 cd /home/zaher/Loki-IDS
 sudo bash start_loki_system.sh
 ```
 
-This will:
-1. Start the Core API Server (which serves these static files)
-2. Start the IDS packet processing
-3. Make the dashboard available at http://localhost:8080
+Then open: **http://localhost:8080**
 
-## Features
+## This Directory
 
-- **Dashboard Tab**: Real-time statistics and system status
-- **Alerts Tab**: View and manage security alerts
-- **Signatures Tab**: Manage detection signatures
-- **IoT Control Tab**: Control connected ESP32 devices
-
-## API Endpoints
-
-The frontend communicates with these API endpoints:
-
-- `GET /api/alerts` - Fetch alerts
-- `GET /api/stats` - Get statistics
-- `GET /api/signatures` - List signatures
-- `POST /api/signatures` - Create signature
-- `GET /api/iot/devices` - List IoT devices
-- `POST /api/iot/devices/{id}/command` - Control IoT devices
-- `WS /ws/alerts` - Real-time alert stream
-
-## Development
-
-To modify the frontend:
-
-1. Edit files in `static/` directory
-2. Refresh browser to see changes (served by Core API)
-3. No build step required (pure HTML/CSS/JS)
+This directory now contains only:
+- Old documentation
+- Cleanup scripts
+- Can be safely removed after verifying the new setup works
 
 ## Documentation
 
-- **Architecture Guide**: `/home/zaher/Loki-IDS/NEW_ARCHITECTURE_GUIDE.md`
-- **IoT Integration**: `/home/zaher/Loki-IDS/IOT_INTEGRATION_GUIDE.md`
-- **API Docs**: http://localhost:8080/docs (when server is running)
-
-## Troubleshooting
-
-### Dashboard not loading
-
-1. Check if API server is running:
-   ```bash
-   curl http://localhost:8080/api/system/health
-   ```
-
-2. Check browser console for errors (F12)
-
-3. Verify static files exist:
-   ```bash
-   ls -lh static/
-   ```
-
-### Can't connect to API
-
-- Ensure IDS Core API server is running
-- Check firewall rules
-- Verify port 8080 is accessible
-
-## Notes
-
-- This directory contains **ONLY** static frontend files
-- All backend code is in `Core/loki/api/`
-- Database is owned by Core (`Core/loki/database/loki_ids.db`)
-- No Python code should exist in this directory
-
-## Cleanup Script
-
-If you see a root-owned `integration/` directory still present, run:
-
-```bash
-sudo bash cleanup_root_files.sh
-```
-
-This will remove any remaining root-owned files from the old architecture.
+See the updated guides:
+- **Architecture**: `/home/zaher/Loki-IDS/NEW_ARCHITECTURE_GUIDE.md`
+- **IoT Setup**: `/home/zaher/Loki-IDS/IOT_INTEGRATION_GUIDE.md`

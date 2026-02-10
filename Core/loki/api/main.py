@@ -73,34 +73,24 @@ async def shutdown_event():
         pass
 
 
-# Calculate paths for static files - use absolute path
-# __file__ is Core/loki/api/main.py
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # Core/loki/api
-LOKI_DIR = os.path.dirname(CURRENT_DIR)  # Core/loki
-CORE_DIR = os.path.dirname(LOKI_DIR)  # Core
-PROJECT_ROOT = os.path.dirname(CORE_DIR)  # Project root
-STATIC_DIR = os.path.join(PROJECT_ROOT, "Web-Interface", "static")
+# Static files directory - now co-located with API code
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 INDEX_PATH = os.path.join(STATIC_DIR, "index.html")
 
-# Print paths for debugging
-print(f"[*] Project root: {PROJECT_ROOT}")
-print(f"[*] Static dir: {STATIC_DIR}")
-print(f"[*] Static dir exists: {os.path.exists(STATIC_DIR)}")
-print(f"[*] Index exists: {os.path.exists(INDEX_PATH)}")
 
-
-# Mount static files BEFORE defining routes
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    print(f"[*] Static files mounted from: {STATIC_DIR}")
-else:
-    print(f"[!] WARNING: Static directory not found at: {STATIC_DIR}")
-
-
+# Serve index.html at root
 @app.get("/")
-async def root():
-    """Serve the dashboard frontend."""
+async def serve_dashboard():
+    """Serve the main dashboard page."""
     if os.path.exists(INDEX_PATH):
         return FileResponse(INDEX_PATH)
-    return {"error": "Dashboard not found", "static_dir": STATIC_DIR, "index_exists": os.path.exists(INDEX_PATH)}
+    return {"error": "Dashboard not found", "path": INDEX_PATH}
+
+
+# Mount static files (CSS, JS, etc.)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    print(f"[✓] Static files: {STATIC_DIR}")
+else:
+    print(f"[!] ERROR: Static directory not found: {STATIC_DIR}")
 
