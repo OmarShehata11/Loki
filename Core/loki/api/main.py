@@ -73,8 +73,12 @@ async def shutdown_event():
         pass
 
 
-# Static files directory - now co-located with API code
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+# Calculate static files path - Web-Interface/static
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # Core/loki/api
+LOKI_DIR = os.path.dirname(CURRENT_DIR)  # Core/loki
+CORE_DIR = os.path.dirname(LOKI_DIR)  # Core
+PROJECT_ROOT = os.path.dirname(CORE_DIR)  # Project root
+STATIC_DIR = os.path.join(PROJECT_ROOT, "Web-Interface", "static")
 INDEX_PATH = os.path.join(STATIC_DIR, "index.html")
 
 
