@@ -73,21 +73,34 @@ async def shutdown_event():
         pass
 
 
+# Calculate paths for static files - use absolute path
+# __file__ is Core/loki/api/main.py
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # Core/loki/api
+LOKI_DIR = os.path.dirname(CURRENT_DIR)  # Core/loki
+CORE_DIR = os.path.dirname(LOKI_DIR)  # Core
+PROJECT_ROOT = os.path.dirname(CORE_DIR)  # Project root
+STATIC_DIR = os.path.join(PROJECT_ROOT, "Web-Interface", "static")
+INDEX_PATH = os.path.join(STATIC_DIR, "index.html")
+
+# Print paths for debugging
+print(f"[*] Project root: {PROJECT_ROOT}")
+print(f"[*] Static dir: {STATIC_DIR}")
+print(f"[*] Static dir exists: {os.path.exists(STATIC_DIR)}")
+print(f"[*] Index exists: {os.path.exists(INDEX_PATH)}")
+
+
+# Mount static files BEFORE defining routes
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    print(f"[*] Static files mounted from: {STATIC_DIR}")
+else:
+    print(f"[!] WARNING: Static directory not found at: {STATIC_DIR}")
+
+
 @app.get("/")
 async def root():
     """Serve the dashboard frontend."""
-    # Serve Web-Interface static files from project root
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    static_dir = os.path.join(project_root, "Web-Interface", "static")
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "Loki IDS API", "docs": "/docs"}
-
-
-# Mount static files from Web-Interface
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-static_dir = os.path.join(project_root, "Web-Interface", "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    if os.path.exists(INDEX_PATH):
+        return FileResponse(INDEX_PATH)
+    return {"error": "Dashboard not found", "static_dir": STATIC_DIR, "index_exists": os.path.exists(INDEX_PATH)}
 
