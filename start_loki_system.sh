@@ -32,25 +32,25 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Step 1: Start Web Interface
-echo -e "${CYAN}[1/3] Starting Web Interface...${NC}"
+# Step 1: Start Core API Server
+echo -e "${CYAN}[1/3] Starting Core API Server...${NC}"
 echo ""
 
 if pgrep -f "uvicorn.*api.main:app" > /dev/null; then
-    echo -e "${YELLOW}[*] Web Interface is already running${NC}"
+    echo -e "${YELLOW}[*] API Server is already running${NC}"
     echo -e "${GREEN}[*] PID: $(pgrep -f 'uvicorn.*api.main:app')${NC}"
 else
-    # Start Web Interface in background
-    cd "$WEB_DIR"
-    bash start_web_server.sh > /tmp/loki_web.log 2>&1 &
-    WEB_PID=$!
+    # Start Core API Server in background
+    cd "$PROJECT_ROOT/Core/loki"
+    bash start_api.sh > /tmp/loki_api.log 2>&1 &
+    API_PID=$!
 
-    echo -e "${YELLOW}[*] Waiting for Web Interface to start...${NC}"
+    echo -e "${YELLOW}[*] Waiting for API Server to start...${NC}"
 
     # Wait up to 10 seconds for the API to be ready
     for i in {1..10}; do
         if curl -s http://localhost:8080/api/system/health > /dev/null 2>&1; then
-            echo -e "${GREEN}[✓] Web Interface started successfully (PID: $WEB_PID)${NC}"
+            echo -e "${GREEN}[✓] API Server started successfully (PID: $API_PID)${NC}"
             echo -e "${GREEN}[✓] Dashboard: http://localhost:8080${NC}"
             break
         fi
@@ -61,8 +61,8 @@ else
 
     # Verify it actually started
     if ! curl -s http://localhost:8080/api/system/health > /dev/null 2>&1; then
-        echo -e "${RED}[!] Web Interface failed to start${NC}"
-        echo -e "${RED}[!] Check logs: tail /tmp/loki_web.log${NC}"
+        echo -e "${RED}[!] API Server failed to start${NC}"
+        echo -e "${RED}[!] Check logs: tail /tmp/loki_api.log${NC}"
         exit 1
     fi
 fi
@@ -118,8 +118,8 @@ cleanup() {
     echo "[*] Stopping IDS Core..."
     bash "$PROJECT_ROOT/Scripts/iptables_down.sh" 2>/dev/null
 
-    # Stop Web Interface
-    echo "[*] Stopping Web Interface..."
+    # Stop API Server
+    echo "[*] Stopping API Server..."
     pkill -f "uvicorn.*api.main" 2>/dev/null
 
     echo -e "${GREEN}[+] LOKI IDS System stopped cleanly${NC}"

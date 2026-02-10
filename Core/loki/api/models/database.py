@@ -11,7 +11,7 @@ from datetime import datetime
 # Get project root directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-db_path = os.path.join(project_root, "Web-Interface", "loki_ids.db")
+db_path = os.path.join(project_root, "Core", "loki", "database", "loki_ids.db")
 
 # Create async engine for SQLite
 DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"

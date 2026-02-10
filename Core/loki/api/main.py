@@ -76,15 +76,18 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Serve the dashboard frontend."""
-    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    # Serve Web-Interface static files from project root
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    static_dir = os.path.join(project_root, "Web-Interface", "static")
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "Loki IDS API", "docs": "/docs"}
 
 
-# Mount static files
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+# Mount static files from Web-Interface
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+static_dir = os.path.join(project_root, "Web-Interface", "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
