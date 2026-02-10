@@ -1,197 +1,134 @@
 """
-Database integration for Loki Logger.
-Allows the logger to write alerts directly to the database.
+API integration for Loki Logger.
+Sends alerts to the Web Interface API instead of directly accessing the database.
+This prevents database locking issues.
 """
-import os
-import sys
 import json
-import asyncio
+import urllib.request
+import urllib.error
 from typing import Optional, Dict, Any
-from datetime import datetime
-
-# Add Web-Interface to path to import database modules
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-web_interface_path = os.path.join(project_root, "Web-Interface")
-if web_interface_path not in sys.path:
-    sys.path.insert(0, web_interface_path)
-
-from api.models.database import AsyncSessionLocal
-from api.models.crud import create_alert, get_signatures
 
 
 class DatabaseIntegration:
     """
-    Handles database operations for the logger.
-    Uses asyncio to run async database operations from sync context.
+    Handles API communication for the logger.
+    Sends alerts to the Web Interface API via HTTP POST.
     """
-    def __init__(self):
+    def __init__(self, api_base_url: str = "http://localhost:8080/api"):
         self.enabled = False
-        self.loop = None
-        self._loop_thread = None
-        
+        self.api_base_url = api_base_url.rstrip('/')
+        self.alerts_endpoint = f"{self.api_base_url}/alerts"
+        self.signatures_endpoint = f"{self.api_base_url}/signatures"
+
     def enable(self):
-        """Enable database integration."""
+        """Enable API integration."""
         try:
-            # Try to get or create an event loop
-            try:
-                self.loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # No event loop in current thread, create a new one
-                self.loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self.loop)
-            
-            self.enabled = True
-            print("[*] Database integration enabled")
-            return True
+            # Test if API is reachable
+            req = urllib.request.Request(
+                f"{self.api_base_url}/system/health",
+                method='GET'
+            )
+            with urllib.request.urlopen(req, timeout=2) as response:
+                if response.status == 200:
+                    self.enabled = True
+                    print(f"[*] API integration enabled (API: {self.api_base_url})")
+                    return True
         except Exception as e:
-            print(f"[!] Failed to enable database integration: {e}")
+            print(f"[!] Failed to enable API integration: {e}")
+            print(f"[!] Make sure Web Interface is running at {self.api_base_url}")
             return False
-    
+
     def disable(self):
-        """Disable database integration."""
+        """Disable API integration."""
         self.enabled = False
-        if self.loop and not self.loop.is_closed():
-            # Don't close the loop, just mark as disabled
-            pass
-    
-    async def _insert_alert_async(self, alert_data: Dict[str, Any]) -> bool:
-        """Async function to insert alert into database."""
-        try:
-            async with AsyncSessionLocal() as session:
-                # Convert details dict to JSON string if it exists
-                if 'details' in alert_data and isinstance(alert_data['details'], dict):
-                    alert_data['details'] = json.dumps(alert_data['details'])
-                
-                # Convert numeric fields to strings for database (as per schema)
-                if 'duration_seconds' in alert_data and alert_data['duration_seconds'] is not None:
-                    alert_data['duration_seconds'] = str(alert_data['duration_seconds'])
-                if 'attack_rate_pps' in alert_data and alert_data['attack_rate_pps'] is not None:
-                    alert_data['attack_rate_pps'] = str(alert_data['attack_rate_pps'])
-                if 'total_duration_seconds' in alert_data and alert_data['total_duration_seconds'] is not None:
-                    alert_data['total_duration_seconds'] = str(alert_data['total_duration_seconds'])
-                if 'average_rate_pps' in alert_data and alert_data['average_rate_pps'] is not None:
-                    alert_data['average_rate_pps'] = str(alert_data['average_rate_pps'])
-                
-                await create_alert(session, alert_data)
-                return True
-        except Exception as e:
-            print(f"[!] Failed to insert alert into database: {e}")
-            return False
-    
-    async def _get_signatures_async(self, enabled_only: bool = True) -> list:
-        """Async function to get signatures from database."""
-        try:
-            async with AsyncSessionLocal() as session:
-                signatures, _ = await get_signatures(session, enabled_only=enabled_only, limit=10000)
-                return [
-                    {
-                        'name': sig.name,
-                        'pattern': sig.pattern,
-                        'action': sig.action,
-                        'description': sig.description or '',
-                        'enabled': bool(sig.enabled)
-                    }
-                    for sig in signatures
-                ]
-        except Exception as e:
-            print(f"[!] Failed to get signatures from database: {e}")
-            return []
-    
-    def get_signatures(self, enabled_only: bool = True) -> list:
-        """
-        Get signatures from database (synchronous wrapper for async operation).
-        Returns list of signature dicts with keys: name, pattern, action, description, enabled
-        """
-        try:
-            # Get or create event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # No event loop in this thread, create a new one in a thread
-                import threading
-                result_container = []
-                
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    result = new_loop.run_until_complete(self._get_signatures_async(enabled_only))
-                    result_container.append(result)
-                    new_loop.close()
-                
-                thread = threading.Thread(target=run_in_thread, daemon=False)
-                thread.start()
-                thread.join()
-                return result_container[0] if result_container else []
-            
-            # If loop is running, we need to use a thread
-            if loop.is_running():
-                import threading
-                result_container = []
-                
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    result = new_loop.run_until_complete(self._get_signatures_async(enabled_only))
-                    result_container.append(result)
-                    new_loop.close()
-                
-                thread = threading.Thread(target=run_in_thread, daemon=False)
-                thread.start()
-                thread.join()
-                return result_container[0] if result_container else []
-            else:
-                # If loop is not running, run it
-                return loop.run_until_complete(self._get_signatures_async(enabled_only))
-        except Exception as e:
-            print(f"[!] Error getting signatures from database: {e}")
-            return []
-    
+        print("[*] API integration disabled")
+
     def insert_alert(self, alert_data: Dict[str, Any]) -> bool:
         """
-        Insert alert into database (synchronous wrapper for async operation).
-        This can be called from the synchronous logger.
-        Uses a background thread with its own event loop to avoid blocking.
+        Send alert to Web Interface API via HTTP POST.
+        Non-blocking - returns immediately without waiting for response.
         """
         if not self.enabled:
             return False
-        
+
         try:
-            # Get or create event loop
+            # Convert details dict to JSON string if needed
+            if 'details' in alert_data and isinstance(alert_data['details'], dict):
+                # Keep as dict, API will handle conversion
+                pass
+
+            # Prepare JSON payload
+            payload = json.dumps(alert_data).encode('utf-8')
+
+            # Create HTTP POST request
+            req = urllib.request.Request(
+                self.alerts_endpoint,
+                data=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                method='POST'
+            )
+
+            # Send request (non-blocking with short timeout)
             try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # No event loop in this thread, create a new one in a thread
-                import threading
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    new_loop.run_until_complete(self._insert_alert_async(alert_data))
-                    new_loop.close()
-                
-                thread = threading.Thread(target=run_in_thread, daemon=True)
-                thread.start()
-                return True
-            
-            # If loop is running, schedule in background thread
-            if loop.is_running():
-                import threading
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    new_loop.run_until_complete(self._insert_alert_async(alert_data))
-                    new_loop.close()
-                
-                thread = threading.Thread(target=run_in_thread, daemon=True)
-                thread.start()
-                return True
-            else:
-                # If loop is not running, run it
-                loop.run_until_complete(self._insert_alert_async(alert_data))
-                return True
+                with urllib.request.urlopen(req, timeout=1) as response:
+                    if response.status in (200, 201):
+                        return True
+                    else:
+                        print(f"[!] API returned status {response.status}")
+                        return False
+            except urllib.error.URLError as e:
+                # Timeout or connection error - don't block IDS
+                print(f"[!] Failed to send alert to API (non-blocking): {e}")
+                return False
+
         except Exception as e:
-            print(f"[!] Error inserting alert into database: {e}")
+            print(f"[!] Error sending alert to API: {e}")
             return False
+
+    def get_signatures(self, enabled_only: bool = True) -> list:
+        """
+        Get signatures from Web Interface API via HTTP GET.
+        Returns list of signature dicts with keys: name, pattern, action, description, enabled
+        """
+        if not self.enabled:
+            return []
+
+        try:
+            # Build URL with query parameters
+            url = f"{self.signatures_endpoint}?page=1&page_size=10000"
+            if enabled_only:
+                url += "&enabled=true"
+
+            # Create HTTP GET request
+            req = urllib.request.Request(url, method='GET')
+
+            # Send request
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode('utf-8'))
+                    signatures = data.get('signatures', [])
+
+                    # Convert to expected format
+                    return [
+                        {
+                            'name': sig.get('name', ''),
+                            'pattern': sig.get('pattern', ''),
+                            'action': sig.get('action', 'alert'),
+                            'description': sig.get('description', ''),
+                            'enabled': sig.get('enabled', False)
+                        }
+                        for sig in signatures
+                    ]
+                else:
+                    print(f"[!] Failed to get signatures from API: HTTP {response.status}")
+                    return []
+
+        except Exception as e:
+            print(f"[!] Error getting signatures from API: {e}")
+            return []
 
 
 # Global instance

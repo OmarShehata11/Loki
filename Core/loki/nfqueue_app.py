@@ -242,11 +242,11 @@ if __name__ == "__main__":
     logger.log_system_event("========== Starting LOKI IDS ==========", "INFO")
     logger.log_system_event("Detection: Sliding Window + EWMA rate estimation (no eBPF/XDP)", "INFO")
     
-    # Enable database integration first (needed for signature loading)
+    # Enable API integration first (needed for signature loading and alert submission)
     if db_integration.enable():
-        logger.log_system_event("Database integration enabled - alerts will be written to database", "INFO")
+        logger.log_system_event("API integration enabled - alerts will be sent to Web Interface", "INFO")
     else:
-        logger.log_system_event("Database integration failed to enable", "WARNING")
+        logger.log_system_event("API integration failed - Make sure Web Interface is running first!", "WARNING")
     
     # let's now create the 2 threads..
     try:
