@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
 Setup script to register default IoT devices in the database.
+Following the new architecture where the API is located in Core/loki/api.
 """
 import asyncio
 import sys
 import os
 from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add Core/loki to path for imports
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+core_loki_path = os.path.join(project_root, "Core", "loki")
+sys.path.insert(0, core_loki_path)
 
 from api.models.database import AsyncSessionLocal, IoTDevice
 
