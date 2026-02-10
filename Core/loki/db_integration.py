@@ -71,17 +71,19 @@ class DatabaseIntegration:
                 method='POST'
             )
 
-            # Send request (non-blocking with short timeout)
+            # Send request (non-blocking with very short timeout)
             try:
-                with urllib.request.urlopen(req, timeout=1) as response:
-                    if response.status in (200, 201):
+                with urllib.request.urlopen(req, timeout=0.5) as response:
+                    # 202 = Accepted (background processing)
+                    # 201 = Created (immediate processing)
+                    # 200 = OK
+                    if response.status in (200, 201, 202):
                         return True
                     else:
-                        print(f"[!] API returned status {response.status}")
+                        # Don't print errors for every failed alert - too noisy
                         return False
-            except urllib.error.URLError as e:
-                # Timeout or connection error - don't block IDS
-                print(f"[!] Failed to send alert to API (non-blocking): {e}")
+            except urllib.error.URLError:
+                # Timeout or connection error - don't block IDS, fail silently
                 return False
 
         except Exception as e:

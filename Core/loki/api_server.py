@@ -27,5 +27,9 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=8080,
-        log_level="info"
+        log_level="info",
+        limit_concurrency=1000,  # Allow many concurrent connections
+        limit_max_requests=10000,  # Restart worker after N requests (memory management)
+        timeout_keep_alive=5,  # Keep connections alive briefly
+        backlog=2048  # Queue size for pending connections
     )

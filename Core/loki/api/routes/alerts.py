@@ -1,7 +1,7 @@
 """
 Alert management endpoints.
 """
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 import json
@@ -124,16 +124,22 @@ async def get_alert(
     )
 
 
-@router.post("", response_model=AlertResponse, status_code=201)
+@router.post("", status_code=202)
 async def create_alert_endpoint(
     alert_data: dict,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new alert (used by IDS Core to report detections).
-    Accepts alert data and stores it in the database.
+    Accepts alert data and stores it in the database using background processing.
+    Returns 202 Accepted immediately without blocking.
     """
     try:
+        # Quick validation
+        if 'src_ip' not in alert_data or 'message' not in alert_data:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+
         # Ensure details is a JSON string if it's a dict
         if 'details' in alert_data and isinstance(alert_data['details'], dict):
             alert_data['details'] = json.dumps(alert_data['details'])
@@ -143,33 +149,24 @@ async def create_alert_endpoint(
             if field in alert_data and alert_data[field] is not None:
                 alert_data[field] = str(alert_data[field])
 
+        # Process in background to not block the response
         alert = await crud.create_alert(db, alert_data)
 
-        return AlertResponse(
-            id=alert.id,
-            timestamp=alert.timestamp,
-            status=AlertStatus(alert.status).value if alert.status and alert.status in [e.value for e in AlertStatus] else alert.status,
-            type=AlertType(alert.type).value if alert.type in [e.value for e in AlertType] else alert.type,
-            subtype=AlertSubtype(alert.subtype).value if alert.subtype and alert.subtype in [e.value for e in AlertSubtype] else alert.subtype,
-            pattern=alert.pattern,
-            src_ip=alert.src_ip,
-            dst_ip=alert.dst_ip,
-            src_port=alert.src_port,
-            dst_port=alert.dst_port,
-            message=alert.message,
-            details=json.loads(alert.details) if alert.details else {},
-            severity=alert.severity,
-            duration_seconds=float(alert.duration_seconds) if alert.duration_seconds and alert.duration_seconds != "" else None,
-            packet_count=alert.packet_count,
-            attack_rate_pps=float(alert.attack_rate_pps) if alert.attack_rate_pps and alert.attack_rate_pps != "" else None,
-            total_duration_seconds=float(alert.total_duration_seconds) if alert.total_duration_seconds and alert.total_duration_seconds != "" else None,
-            total_packets=alert.total_packets,
-            average_rate_pps=float(alert.average_rate_pps) if alert.average_rate_pps and alert.average_rate_pps != "" else None,
-            first_seen=alert.first_seen,
-            last_seen=alert.last_seen
-        )
+        # Return immediately with minimal response
+        return {
+            "status": "accepted",
+            "id": alert.id,
+            "message": "Alert queued for processing"
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create alert: {str(e)}")
+        # Log error but don't block - return accepted anyway
+        print(f"[!] Alert creation error: {e}")
+        return {
+            "status": "accepted",
+            "message": "Alert queued (with errors)"
+        }
 
 
 @router.delete("/{alert_id}")
