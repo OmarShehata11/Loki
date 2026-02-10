@@ -13,9 +13,20 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 db_path = os.path.join(project_root, "Core", "loki", "database", "loki_ids.db")
 
-# Create async engine for SQLite
+# Create async engine for SQLite with optimizations for concurrent access
 DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    future=True,
+    connect_args={
+        "timeout": 30,  # Increase timeout for busy database
+        "check_same_thread": False,  # Allow multiple threads
+    },
+    pool_pre_ping=True,  # Verify connections before using
+    pool_size=20,  # Increase pool size for concurrent connections
+    max_overflow=40  # Allow overflow connections
+)
 
 # Session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -123,8 +134,15 @@ class IoTDeviceState(Base):
 
 
 async def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and enable WAL mode for better concurrency."""
     async with engine.begin() as conn:
+        # Enable WAL mode for concurrent reads/writes
+        await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+        await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+        await conn.exec_driver_sql("PRAGMA cache_size=-64000")  # 64MB cache
+        await conn.exec_driver_sql("PRAGMA busy_timeout=30000")  # 30 second timeout
+
+        # Create tables
         await conn.run_sync(Base.metadata.create_all)
 
 
