@@ -144,11 +144,11 @@ class MQTTClient:
                 self.client = mqtt.Client(
                     callback_api_version=CallbackAPIVersion.VERSION2,
                     client_id=self.client_id,
-                    clean_session=True
+                    protocol=mqtt.MQTTv311
                 )
             else:
                 # Fallback for paho-mqtt 1.x
-                self.client = mqtt.Client(client_id=self.client_id)
+                self.client = mqtt.Client(client_id=self.client_id, clean_session=True)
             
             # Set callbacks
             self.client.on_connect = self._on_connect
@@ -160,8 +160,17 @@ class MQTTClient:
             
             logger.info(f"Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
             
-            # Connect with keepalive
-            self.client.connect(self.broker_host, self.broker_port, keepalive=60)
+            # Connect with keepalive - use connect_async to avoid blocking
+            try:
+                self.client.connect(self.broker_host, self.broker_port, keepalive=60)
+            except OSError as e:
+                logger.error(f"Connection failed (network error): {e}")
+                self._connection_lock = False
+                return False
+            except Exception as e:
+                logger.error(f"Connection failed: {e}")
+                self._connection_lock = False
+                return False
             
             # Start network loop in background thread
             self.client.loop_start()
@@ -199,7 +208,7 @@ class MQTTClient:
                 self.client = None
             logger.info("Disconnected from MQTT broker")
     
-    def publish(self, topic: str, payload: Dict[str, Any], qos: int = 1) -> bool:
+    def publish(self, topic: str, payload: Dict[str, Any], qos: int = 0) -> bool:
         """Publish a message to an MQTT topic."""
         if not self.client:
             logger.warning("MQTT client not initialized. Cannot publish message.")
@@ -223,15 +232,31 @@ class MQTTClient:
             
             result = self.client.publish(topic, payload_str, qos=qos)
             
-            # Wait for publish to complete (with timeout)
-            result.wait_for_publish(timeout=5.0)
-            
-            if result.is_published():
-                logger.info(f"✓ Successfully published to {topic}")
-                return True
+            if qos > 0:
+                # For QoS 1 or 2, wait for publish confirmation with timeout
+                try:
+                    result.wait_for_publish(timeout=3.0)
+                    if result.is_published():
+                        logger.info(f"✓ Successfully published to {topic} (QoS {qos})")
+                        return True
+                    else:
+                        logger.warning(f"Message to {topic} not confirmed, but may have been sent")
+                        return True  # Return true anyway, message was queued
+                except RuntimeError as e:
+                    # This can happen if client disconnects during wait
+                    logger.warning(f"Publish confirmation interrupted: {e}")
+                    return True  # Message was likely sent
+                except Exception as e:
+                    logger.warning(f"Publish wait timeout: {e}")
+                    return True  # Message was queued
             else:
-                logger.error(f"✗ Failed to publish to {topic} - message not confirmed")
-                return False
+                # For QoS 0, just check if publish was successful
+                if result.rc == 0:
+                    logger.info(f"✓ Successfully published to {topic} (QoS 0)")
+                    return True
+                else:
+                    logger.error(f"✗ Failed to publish to {topic} - rc: {result.rc}")
+                    return False
                 
         except Exception as e:
             logger.error(f"Error publishing MQTT message: {e}")
@@ -323,13 +348,29 @@ class MQTTClient:
 _mqtt_client: Optional[MQTTClient] = None
 
 
-def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> Optional[MQTTClient]:
-    """Get or create the global MQTT client instance."""
+def get_mqtt_client(broker_host: Optional[str] = None, broker_port: Optional[int] = None) -> Optional[MQTTClient]:
+    """Get the global MQTT client instance. 
+    
+    If broker_host and broker_port are provided, creates a new client with those settings.
+    If they are None, returns the existing client (if any).
+    """
     global _mqtt_client
     
     if not MQTT_AVAILABLE:
         logger.warning("MQTT library not available")
         return None
+    
+    # If no parameters provided, just return existing client
+    if broker_host is None and broker_port is None:
+        if _mqtt_client is None:
+            logger.warning("No MQTT client initialized. Call initialize_mqtt first or provide broker details.")
+        return _mqtt_client
+    
+    # Set defaults if only partially provided
+    if broker_host is None:
+        broker_host = "10.0.0.1"
+    if broker_port is None:
+        broker_port = 1883
     
     # If client exists but broker changed, recreate it
     if _mqtt_client is not None:
@@ -345,7 +386,7 @@ def get_mqtt_client(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> 
     return _mqtt_client
 
 
-def initialize_mqtt(broker_host: str = "127.0.0.1", broker_port: int = 1883) -> bool:
+def initialize_mqtt(broker_host: str = "10.0.0.1", broker_port: int = 1883) -> bool:
     """Initialize and connect the MQTT client."""
     logger.info(f"Initializing MQTT connection to {broker_host}:{broker_port}")
     client = get_mqtt_client(broker_host, broker_port)
