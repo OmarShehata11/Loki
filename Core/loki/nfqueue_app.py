@@ -147,7 +147,7 @@ def process_packet(packet, IsInput, port_scanner, sig_scanner):
                 )
 
         else : # some other packet, we may just log it to type of packets in normal conditions
-            logger.console_logger.info(f"Wierd type of packet: [{chain_name}] Packet: {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({port})")
+            logger.console_logger.info(f"[{chain_name}] Packet: {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({port})")
 
 
         #analyze_result = port_scanner.analyze_packet(src_ip, dst_ip, raw_timestamp, dst_port, tcp_flags)
@@ -240,6 +240,7 @@ def input_agent(sig_object):
 
 if __name__ == "__main__":
     logger.log_system_event("========== Starting LOKI IDS ==========", "INFO")
+    logger.log_system_event("Detection: Sliding Window + EWMA rate estimation (no eBPF/XDP)", "INFO")
     
     # Enable database integration first (needed for signature loading)
     if db_integration.enable():

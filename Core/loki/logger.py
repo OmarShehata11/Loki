@@ -121,7 +121,7 @@ class LokiLogger:
         subtype_str = f" [{subtype}]" if subtype else ""
         pattern_str = f" [Pattern: {pattern}]" if pattern else ""
         self.console_logger.warning(
-            f"🚨 [NEW] [{alert_type}]{subtype_str}{pattern_str} {src_ip}:{src_port} → {dst_ip}:{dst_port} - {message}"
+            f"[NEW] [{alert_type}]{subtype_str}{pattern_str} {src_ip}:{src_port} → {dst_ip}:{dst_port} - {message}"
         )
         
         # File Output
@@ -195,7 +195,7 @@ class LokiLogger:
             # Optionally log to console every N packets
             if alert_state['packet_count'] % 100 == 0:
                 self.console_logger.debug(
-                    f"⚠️  [{alert_type}] {src_ip} → {dst_ip}:{dst_port} - "
+                    f"[{alert_type}] {src_ip} → {dst_ip}:{dst_port} - "
                     f"{message} ({alert_state['packet_count']} packets)"
                 )
     
@@ -207,7 +207,7 @@ class LokiLogger:
         
         # Console Output
         self.console_logger.warning(
-            f"⚠️  [ONGOING] [{alert_type}] {src_ip}:{src_port} → {dst_ip}:{dst_port} - "
+            f"[ONGOING] [{alert_type}] {src_ip}:{src_port} → {dst_ip}:{dst_port} - "
             f"{message} ({alert_state['packet_count']} packets, {duration:.1f}s)"
         )
         
@@ -270,7 +270,7 @@ class LokiLogger:
         
         # Console Output
         self.console_logger.info(
-            f"✅ [ENDED] [{alert_type}] {src_ip} → {dst_ip} - {message} "
+            f"ENDED] [{alert_type}] {src_ip} → {dst_ip} - {message} "
             f"(Total: {alert_state['packet_count']} packets, {total_duration:.1f}s)"
         )
         
