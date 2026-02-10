@@ -17,10 +17,10 @@ sudo iptables -I FORWARD -j NFQUEUE --queue-num $QUEUE_NUM_FORWARD --queue-bypas
 echo "[2/4] Inserting NFQUEUE rule to INPUT chain (for traffic to the Pi itself) with bypass..."
 sudo iptables -I INPUT -j NFQUEUE --queue-num $QUEUE_NUM_INPUT --queue-bypass
 
-# 3. EXCLUDE ONLY PORT 8080 ON LOCALHOST (for dashboard)
-echo "[3/4] Excluding localhost:8080 from inspection (for dashboard)..."
-sudo iptables -I INPUT -i lo -p tcp --dport 8080 -j ACCEPT
-sudo iptables -I OUTPUT -o lo -p tcp --sport 8080 -j ACCEPT
+# 3. EXCLUDE LOCALHOST FROM INSPECTION (inserted AFTER so it goes ABOVE nfqueue)
+echo "[3/4] Excluding localhost traffic from inspection..."
+sudo iptables -I INPUT -i lo -j ACCEPT
+sudo iptables -I OUTPUT -o lo -j ACCEPT
 
 # 4. VERIFICATION
 echo "[4/4] Rules set. Localhost excluded, other packets sent to Queue $QUEUE_NUM_FORWARD & $QUEUE_NUM_INPUT."
