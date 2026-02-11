@@ -11,6 +11,7 @@ import logging
 
 from ..models.database import get_db, IoTDevice, IoTDeviceState
 from ..iot import get_mqtt_client, MQTT_AVAILABLE
+from ..iot.mqtt_client import MQTTClient
 from ..models import crud
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,13 @@ router = APIRouter(prefix="/iot", tags=["iot"])
 
 @router.get("/devices")
 async def get_devices(db: AsyncSession = Depends(get_db)):
-    """Get all registered IoT devices."""
+    """Get all registered IoT devices with real-time status from MQTT."""
     result = await db.execute(select(IoTDevice))
     devices = result.scalars().all()
     
     device_list = []
     for device in devices:
-        # Get latest state for each device
+        # Get latest state for each device from database
         state_result = await db.execute(
             select(IoTDeviceState)
             .where(IoTDeviceState.device_id == device.device_id)
@@ -33,6 +34,17 @@ async def get_devices(db: AsyncSession = Depends(get_db)):
             .limit(1)
         )
         latest_state = state_result.scalar_one_or_none()
+        
+        # Get real-time status from MQTT tracking
+        mqtt_status = MQTTClient.get_device_status(device.device_id)
+        is_online = MQTTClient.is_device_online(device.device_id, timeout_seconds=90)
+        
+        # Use MQTT last_seen if available, otherwise use database value
+        last_seen = None
+        if mqtt_status and mqtt_status.get('last_seen'):
+            last_seen = mqtt_status.get('last_seen')
+        elif device.last_seen:
+            last_seen = device.last_seen
         
         device_dict = {
             "id": device.id,
@@ -42,11 +54,19 @@ async def get_devices(db: AsyncSession = Depends(get_db)):
             "description": device.description,
             "mqtt_topic": device.mqtt_topic,
             "enabled": bool(device.enabled),
-            "last_seen": device.last_seen,
+            "last_seen": last_seen,
+            "online": is_online,
             "state": {}
         }
         
-        # Parse state values
+        # Merge MQTT status data into state
+        if mqtt_status and mqtt_status.get('data'):
+            mqtt_data = mqtt_status.get('data')
+            for key, value in mqtt_data.items():
+                if key not in ['device', 'timestamp']:
+                    device_dict["state"][key] = value
+        
+        # Parse state values from database
         if latest_state:
             try:
                 device_dict["state"][latest_state.state_key] = json.loads(latest_state.state_value) if latest_state.state_value.startswith('{') else latest_state.state_value
@@ -58,7 +78,21 @@ async def get_devices(db: AsyncSession = Depends(get_db)):
     return {"devices": device_list}
 
 
-@router.post("/devices/{device_id}/bulb")
+@router.get("/devices/status")
+async def get_devices_realtime_status():
+    """Get real-time status of all devices from MQTT (no database)."""
+    statuses = MQTTClient.get_all_device_statuses()
+    
+    result = {}
+    for device_id, status in statuses.items():
+        result[device_id] = {
+            "online": MQTTClient.is_device_online(device_id, timeout_seconds=90),
+            "last_seen": status.get('last_seen'),
+            "status": status.get('status'),
+            "data": status.get('data', {})
+        }
+    
+    return {"devices": result}@router.post("/devices/{device_id}/bulb")
 async def control_bulb(
     device_id: str,
     state: str,  # "on" or "off"

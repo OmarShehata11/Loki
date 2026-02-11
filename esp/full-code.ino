@@ -18,9 +18,9 @@
 #include <ArduinoJson.h>
 
 // --- WiFi and MQTT Configuration ---
-const char* WIFI_SSID = "MyWiFi";
-const char* WIFI_PASS = "password";
-const char* MQTT_BROKER_IP = "172.16.10.252";
+const char* WIFI_SSID = "MyWiFi";      // TODO: Update with your WiFi SSID
+const char* WIFI_PASS = "password";    // TODO: Update with your WiFi password
+const char* MQTT_BROKER_IP = "10.0.0.1"; // Raspberry Pi Access Point IP
 const int   MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "esp32-1";
 const char* DEVICE_ID = "esp32-1";  // Must match dashboard
@@ -194,10 +194,19 @@ void controlLED(const char* action) {
 
 // --- MQTT Callback (Handle Dashboard Commands) ---
 void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("[←] Message on: ");
-  Serial.print(topic);
-  Serial.print(" | Length: ");
+  Serial.println("\n========== MQTT MESSAGE RECEIVED ==========");
+  Serial.print("[←] Topic: ");
+  Serial.println(topic);
+  Serial.print("[←] Length: ");
   Serial.println(length);
+  
+  // Print raw message for debugging
+  Serial.print("[←] Raw message: ");
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+  }
+  Serial.println();
+  Serial.println("============================================");
 
   // Parse JSON
   StaticJsonDocument<256> doc;
@@ -211,8 +220,13 @@ void callback(char* topic, byte* message, unsigned int length) {
 
   // Check if for this device
   const char* targetDevice = doc["device"];
+  Serial.print("[i] Target device: ");
+  Serial.println(targetDevice ? targetDevice : "NULL");
+  Serial.print("[i] This device: ");
+  Serial.println(DEVICE_ID);
+  
   if (!targetDevice || strcmp(targetDevice, DEVICE_ID) != 0) {
-    Serial.println("[i] Not for this device");
+    Serial.println("[i] Not for this device, ignoring");
     return;
   }
 
@@ -223,7 +237,7 @@ void callback(char* topic, byte* message, unsigned int length) {
     return;
   }
 
-  Serial.print("[!] Command: ");
+  Serial.print("[!] Executing command: ");
   Serial.println(command);
 
   // Handle commands
@@ -280,12 +294,13 @@ void loop() {
     long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
+      Serial.println("[!] MQTT disconnected, attempting reconnect...");
       if (reconnect_mqtt()) {
         lastReconnectAttempt = 0;
       }
     }
   } else {
-    client.loop();
+    client.loop();  // Process incoming MQTT messages
   }
 
   // PIR Motion Detection

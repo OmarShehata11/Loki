@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 class MQTTClient:
     """MQTT client wrapper for IoT device communication. Compatible with paho-mqtt 2.x."""
     
+    # Class-level device status tracking (shared across instances)
+    _device_status: Dict[str, Dict[str, Any]] = {}
+    
     def __init__(
         self,
         broker_host: str = "10.0.0.1",
@@ -93,7 +96,7 @@ class MQTTClient:
             topic = msg.topic
             payload = msg.payload.decode('utf-8')
             
-            logger.debug(f"Received MQTT message on {topic}: {payload[:100]}...")
+            logger.info(f"Received MQTT message on {topic}: {payload[:200]}")
             
             # Try to parse as JSON
             try:
@@ -101,14 +104,52 @@ class MQTTClient:
             except json.JSONDecodeError:
                 data = {"raw": payload}
             
+            # Track device status from status topics
+            # Topics like: esp32/sensor1/status, esp32/sensor2/status
+            if '/status' in topic and 'device' in data:
+                device_id = data.get('device')
+                if device_id:
+                    MQTTClient._device_status[device_id] = {
+                        'last_seen': datetime.utcnow().isoformat(),
+                        'status': data.get('status') or data.get('event', 'unknown'),
+                        'data': data
+                    }
+                    logger.info(f"Updated device status for {device_id}: {data.get('status') or data.get('event')}")
+            
             # Call registered callbacks
             if topic in self.message_callbacks:
                 self.message_callbacks[topic](topic, data)
-            else:
-                logger.debug(f"No callback registered for topic {topic}")
                 
         except Exception as e:
             logger.error(f"Error processing MQTT message: {e}")
+    
+    @classmethod
+    def get_device_status(cls, device_id: str) -> Optional[Dict[str, Any]]:
+        """Get the last known status of a device."""
+        return cls._device_status.get(device_id)
+    
+    @classmethod
+    def get_all_device_statuses(cls) -> Dict[str, Dict[str, Any]]:
+        """Get all tracked device statuses."""
+        return cls._device_status.copy()
+    
+    @classmethod
+    def is_device_online(cls, device_id: str, timeout_seconds: int = 60) -> bool:
+        """Check if a device is online based on last seen time."""
+        status = cls._device_status.get(device_id)
+        if not status:
+            return False
+        
+        last_seen_str = status.get('last_seen')
+        if not last_seen_str:
+            return False
+        
+        try:
+            last_seen = datetime.fromisoformat(last_seen_str)
+            elapsed = (datetime.utcnow() - last_seen).total_seconds()
+            return elapsed < timeout_seconds
+        except:
+            return False
     
     def register_callback(self, topic: str, callback: Callable):
         """Register a callback for a specific MQTT topic."""

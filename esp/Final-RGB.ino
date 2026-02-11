@@ -17,9 +17,9 @@
 #include <ArduinoJson.h>
 
 // --- WiFi and MQTT Configuration ---
-const char* WIFI_SSID = "Mikro";
-const char* WIFI_PASS = "123456789";
-const char* MQTT_BROKER_IP = "172.16.10.252";
+const char* WIFI_SSID = "MyWiFi";      // TODO: Update with your WiFi SSID
+const char* WIFI_PASS = "password";    // TODO: Update with your WiFi password
+const char* MQTT_BROKER_IP = "10.0.0.1"; // Raspberry Pi Access Point IP
 const int   MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "esp32-2";           // Device ID
 const char* DEVICE_ID = "esp32-2";                // Must match dashboard
@@ -135,10 +135,19 @@ void controlBulb(bool state, int brightness) {
 
 // --- MQTT Callback (Handle Dashboard Commands) ---
 void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("[←] Message on topic: ");
-  Serial.print(topic);
-  Serial.print(" | Length: ");
+  Serial.println("\n========== MQTT MESSAGE RECEIVED ==========");
+  Serial.print("[←] Topic: ");
+  Serial.println(topic);
+  Serial.print("[←] Length: ");
   Serial.println(length);
+  
+  // Print raw message for debugging
+  Serial.print("[←] Raw message: ");
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+  }
+  Serial.println();
+  Serial.println("============================================");
 
   // Parse JSON message
   StaticJsonDocument<256> doc;
@@ -152,6 +161,11 @@ void callback(char* topic, byte* message, unsigned int length) {
 
   // Check if message is for this device
   const char* targetDevice = doc["device"];
+  Serial.print("[i] Target device: ");
+  Serial.println(targetDevice ? targetDevice : "NULL");
+  Serial.print("[i] This device: ");
+  Serial.println(DEVICE_ID);
+  
   if (!targetDevice || strcmp(targetDevice, DEVICE_ID) != 0) {
     Serial.println("[i] Message not for this device, ignoring");
     return;
@@ -164,7 +178,7 @@ void callback(char* topic, byte* message, unsigned int length) {
     return;
   }
 
-  Serial.print("[!] Command received: ");
+  Serial.print("[!] Executing command: ");
   Serial.println(command);
 
   // Handle bulb_control command
@@ -215,12 +229,13 @@ void loop() {
     long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
+      Serial.println("[!] MQTT disconnected, attempting reconnect...");
       if (reconnect_mqtt()) {
         lastReconnectAttempt = 0;
       }
     }
   } else {
-    client.loop();
+    client.loop();  // Process incoming MQTT messages
   }
 
   // Publish heartbeat every 30 seconds

@@ -1033,8 +1033,8 @@ function displayIoTDevices(devices) {
             `;
         }
         
-        // Determine online status (if last_seen is recent, consider online)
-        const isOnline = device.last_seen ? (Date.now() - new Date(device.last_seen).getTime()) < 60000 : false;
+        // Use online status from API (tracked via MQTT heartbeats)
+        const isOnline = device.online === true;
         const statusClass = isOnline ? 'online' : 'offline';
         const statusText = isOnline ? 'Online' : 'Offline';
         
@@ -1046,7 +1046,7 @@ function displayIoTDevices(devices) {
                         <p class="iot-device-info">Type: ${device.device_type}</p>
                         <p class="iot-device-info">Device ID: ${device.device_id}</p>
                         ${device.description ? `<p class="iot-device-info">${device.description}</p>` : ''}
-                        ${device.last_seen ? `<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : ''}
+                        ${device.last_seen ? `<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : '<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: Never (waiting for heartbeat)</p>'}
                     </div>
                     <div>
                         <span class="iot-status-badge ${device.enabled ? 'enabled' : 'disabled'}">
