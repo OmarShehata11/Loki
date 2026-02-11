@@ -17,8 +17,8 @@
 #include <ArduinoJson.h>
 
 // --- WiFi and MQTT Configuration ---
-const char* WIFI_SSID = "MyWiFi";      // TODO: Update with your WiFi SSID
-const char* WIFI_PASS = "password";    // TODO: Update with your WiFi password
+const char* WIFI_SSID = "Access-Point";      // TODO: Update with your WiFi SSID
+const char* WIFI_PASS = "1234Az@1";    // TODO: Update with your WiFi password
 const char* MQTT_BROKER_IP = "10.0.0.1"; // Raspberry Pi Access Point IP
 const int   MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "esp32-2";           // Device ID

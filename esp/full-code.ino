@@ -18,8 +18,8 @@
 #include <ArduinoJson.h>
 
 // --- WiFi and MQTT Configuration ---
-const char* WIFI_SSID = "MyWiFi";      // TODO: Update with your WiFi SSID
-const char* WIFI_PASS = "password";    // TODO: Update with your WiFi password
+const char* WIFI_SSID = "Access-Point";      // TODO: Update with your WiFi SSID
+const char* WIFI_PASS = "1234Az@1";    // TODO: Update with your WiFi password
 const char* MQTT_BROKER_IP = "10.0.0.1"; // Raspberry Pi Access Point IP
 const int   MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "esp32-1";
@@ -313,6 +313,19 @@ void loop() {
       Serial.println("\n[!] MOTION DETECTED! Alarm activated!");
       alarmActive = true;
       publishStatus("motion_detected");
+
+      // --- NEW: Send RGB ON command ---
+      StaticJsonDocument<200> rgbDoc;
+      rgbDoc["device"] = "esp32-2";
+      rgbDoc["command"] = "bulb_control";
+      rgbDoc["state"] = "on";
+      rgbDoc["brightness"] = 255;  // max brightness
+
+      char rgbBuffer[200];
+      serializeJson(rgbDoc, rgbBuffer);
+      client.publish("rpi/broadcast", rgbBuffer);
+      Serial.print("[→] Sent RGB command: ");
+      Serial.println(rgbBuffer);
     }
 
     // Sound alarm and LED
@@ -326,6 +339,18 @@ void loop() {
       alarmActive = false;
       digitalWrite(BUZZER_PIN, LOW);
       publishStatus("motion_ended");
+      // --- NEW: Send RGB OFF command ---
+      StaticJsonDocument<200> rgbDoc;
+      rgbDoc["device"] = "esp32-2";
+      rgbDoc["command"] = "bulb_control";
+      rgbDoc["state"] = "off";
+
+      char rgbBuffer[200];
+      serializeJson(rgbDoc, rgbBuffer);
+      client.publish("rpi/broadcast", rgbBuffer);
+      Serial.print("[→] Sent RGB OFF command: ");
+      Serial.println(rgbBuffer);
+
     }
 
     // LED control (auto mode follows alarm state)

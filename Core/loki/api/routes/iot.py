@@ -92,7 +92,10 @@ async def get_devices_realtime_status():
             "data": status.get('data', {})
         }
     
-    return {"devices": result}@router.post("/devices/{device_id}/bulb")
+    return {"devices": result}
+
+
+@router.post("/devices/{device_id}/bulb")
 async def control_bulb(
     device_id: str,
     state: str,  # "on" or "off"
