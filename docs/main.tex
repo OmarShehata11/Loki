@@ -1,0 +1,1020 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Packages ──
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[british]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% ── Colours ──
+\definecolor{codebackground}{RGB}{245,245,245}
+\definecolor{codekeyword}{RGB}{0,0,180}
+\definecolor{codecomment}{RGB}{0,128,0}
+\definecolor{codestring}{RGB}{163,21,21}
+\definecolor{linkblue}{RGB}{0,70,140}
+
+% ── Hyperref ──
+\hypersetup{
+    colorlinks=true,
+    linkcolor=linkblue,
+    citecolor=linkblue,
+    urlcolor=linkblue
+}
+
+% ── Listings ──
+\lstset{
+    backgroundcolor=\color{codebackground},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{codekeyword}\bfseries,
+    commentstyle=\color{codecomment},
+    stringstyle=\color{codestring},
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{black!30},
+    numbers=none,
+    xleftmargin=4pt,
+    xrightmargin=4pt,
+    aboveskip=10pt,
+    belowskip=10pt,
+    showstringspaces=false,
+    tabsize=2
+}
+
+\lstdefinelanguage{json}{
+    morestring=[b]",
+    morecomment=[l]{//},
+    literate=
+      {0}{{{\color{codekeyword}0}}}{1}
+      {1}{{{\color{codekeyword}1}}}{1}
+      {2}{{{\color{codekeyword}2}}}{1}
+      {3}{{{\color{codekeyword}3}}}{1}
+      {4}{{{\color{codekeyword}4}}}{1}
+      {5}{{{\color{codekeyword}5}}}{1}
+      {6}{{{\color{codekeyword}6}}}{1}
+      {7}{{{\color{codekeyword}7}}}{1}
+      {8}{{{\color{codekeyword}8}}}{1}
+      {9}{{{\color{codekeyword}9}}}{1}
+      {:}{{{\color{black}{:}}}}{1}
+      {,}{{{\color{black}{,}}}}{1}
+}
+
+% ── Headers ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Loki IDS}
+\fancyhead[R]{\small Security Engineering Lab}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Title spacing ──
+\titleformat{\section}{\Large\bfseries}{Task \thesection:\ }{0em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection\ }{0em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection\ }{0em}{}
+
+% ══════════════════════════════════════════════════════════
+\begin{document}
+
+% ── Title Page ──
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+
+    {\large Lehrstuhl f\"ur Technische Informatik\\
+    Prof.\ Dr.\ Stefan Katzenbeisser\\[4pt]
+    Organiser: Martin Schmid\\
+    Supervisor: Emiliia Geloczi}
+
+    \vspace{1.5cm}
+    {\large Security Engineering Lab, Advanced Security Engineering Lab}
+
+    \vspace{1cm}
+    \rule{\textwidth}{1pt}
+    \vspace{0.5cm}
+
+    {\Huge \textbf{Loki IDS:\\Intrusion Detection in Smart Home}}
+
+    \vspace{0.5cm}
+    \rule{\textwidth}{1pt}
+
+    \vspace{2cm}
+    {\large Final Report}
+
+    \vspace{1.5cm}
+    {\large
+    Omar Shehata \\
+    Ahmed Ghanem \\
+    Moustafa Elgendy \\
+    Mohammed Zaher}
+
+    \vfill
+    {\large Universit\"at Passau \\ Winter Semester 2025/26}
+\end{titlepage}
+
+% ── Table of Contents ──
+\newpage
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════
+% TASK 1 — THEORETICAL BACKGROUND
+% ══════════════════════════════════════════════════════════
+\section{Theoretical Background about IoT Systems}
+\label{sec:theory}
+
+\subsection{Internet of Things (IoT)}
+\label{sec:iot}
+
+The Internet of Things (IoT) refers to a network of physical objects---sensors, appliances, vehicles, and other everyday devices---embedded with electronics, software, and connectivity that allows them to collect and exchange data over the internet or local networks. Unlike traditional computing devices, IoT endpoints are typically resource-constrained (limited CPU, memory, and battery) and designed for a specific purpose, such as measuring temperature, detecting motion, or controlling a light bulb.
+
+In a smart home context, IoT devices include smart locks, thermostats, cameras, motion sensors, and lighting systems. These devices communicate with a central hub or gateway, which coordinates their behaviour and provides user-facing control interfaces. The value lies in automation and remote control, but the always-on, always-connected nature of these devices also means they continuously generate and transmit data, making them attractive targets for adversaries~\cite{atzori2010iot, alfuqaha2015iot}.
+
+\subsection{Architecture of IoT Systems}
+\label{sec:architecture}
+
+IoT systems are commonly described using a layered architecture. While the exact number of layers varies across the literature, the most widely adopted model consists of three to five layers~\cite{khan2012future, wu2010architecture}:
+
+\subsubsection*{Three-Layer Model}
+
+\begin{description}[style=nextline]
+    \item[Perception Layer (Device Layer)]
+    The physical layer where sensors and actuators interact with the environment. Devices here collect raw data (e.g.\ temperature readings, motion events) and execute commands (e.g.\ turn on an LED, sound a buzzer). Common hardware includes microcontrollers such as ESP32 or Arduino boards. Communication at this layer typically uses low-power protocols like Bluetooth Low Energy (BLE), Zigbee, or direct Wi-Fi.
+
+    \item[Network Layer (Transport Layer)]
+    Responsible for transmitting data between the perception layer and the application layer. This layer handles routing, addressing, and protocol translation. In smart homes, Wi-Fi is the dominant transport medium, and protocols such as MQTT (Message Queuing Telemetry Transport), CoAP (Constrained Application Protocol), and HTTP/HTTPS are used for message exchange. MQTT is particularly common in IoT due to its lightweight publish-subscribe model, which is well suited for constrained devices~\cite{banks2014mqtt}.
+
+    \item[Application Layer]
+    Provides the user-facing services and interfaces. This includes dashboards, mobile applications, and automation engines that consume data from the lower layers and present it in a meaningful form. In our system, this corresponds to the web-based dashboard served by the Raspberry~Pi.
+\end{description}
+
+\begin{table}[H]
+\centering
+\caption{Key protocols used in our IoT system.}
+\label{tab:protocols}
+\begin{tabular}{lll}
+\toprule
+\textbf{Layer} & \textbf{Protocol} & \textbf{Purpose} \\
+\midrule
+Perception  & GPIO, I2C           & Sensor/actuator interfacing \\
+Network     & Wi-Fi (802.11)      & Wireless connectivity \\
+Network     & MQTT v3.1.1         & Lightweight publish-subscribe messaging \\
+Network     & HTTP/REST           & API communication \\
+Application & WebSocket           & Real-time dashboard updates \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Vulnerabilities of IoT Systems}
+\label{sec:vulnerabilities}
+
+IoT devices suffer from a number of inherent vulnerabilities that stem from their constrained nature and the way they are typically deployed~\cite{owasp2018iot, bertino2017botnets}:
+
+\begin{itemize}
+    \item \textbf{Weak or default credentials:} Many IoT devices ship with factory-set passwords that users never change, making brute-force or dictionary attacks trivial.
+    \item \textbf{Lack of encryption:} Resource constraints often lead manufacturers to omit TLS or use outdated cryptographic primitives, exposing data in transit to eavesdropping.
+    \item \textbf{Insufficient update mechanisms:} Many IoT devices lack support for over-the-air (OTA) firmware updates, meaning known vulnerabilities remain unpatched indefinitely.
+    \item \textbf{Large attack surface:} Each connected device is a potential entry point. A single compromised sensor can serve as a pivot to reach other devices on the same network.
+    \item \textbf{Insecure network services:} Devices may expose unnecessary ports or run services with known flaws (e.g.\ Telnet, UPnP).
+    \item \textbf{Limited computational resources:} Constrained memory and processing power make it difficult to run traditional security software directly on the devices.
+    \item \textbf{Physical accessibility:} IoT devices are often deployed in accessible locations, making them susceptible to physical tampering.
+\end{itemize}
+
+\subsection{Existing Attacks Against IoT Systems}
+\label{sec:attacks}
+
+The following are well-documented attack categories relevant to IoT environments~\cite{ferrag2020deep, neshenko2019demystifying, antonakakis2017mirai}:
+
+\subsubsection*{Network-Layer Attacks}
+
+\begin{description}[style=nextline]
+    \item[Port Scanning]
+    An attacker probes a range of ports on a target device to discover open services. Tools such as Nmap automate this process. In IoT networks, port scans are often a precursor to more targeted exploitation.
+
+    \item[Denial of Service (DoS/DDoS)]
+    The attacker floods a target with traffic to exhaust its resources and render it unresponsive. Common variants include:
+    \begin{itemize}
+        \item \emph{TCP SYN Flood:} Sends a high volume of TCP SYN packets without completing the handshake, consuming the target's connection table.
+        \item \emph{UDP Flood:} Sends large volumes of UDP datagrams to random ports, forcing the target to process and respond to each one.
+        \item \emph{ICMP Flood (Ping Flood):} Overwhelms a target with ICMP echo request packets.
+    \end{itemize}
+
+    \item[Man-in-the-Middle (MitM)]
+    The attacker intercepts communication between two parties (e.g.\ between an ESP32 device and the MQTT broker) by positioning themselves in the network path, allowing eavesdropping and message manipulation.
+
+    \item[ARP Spoofing]
+    The attacker sends forged ARP messages to associate their MAC address with the IP address of a legitimate device, redirecting traffic through their machine.
+\end{description}
+
+\subsubsection*{Application-Layer Attacks}
+
+\begin{description}[style=nextline]
+    \item[Replay Attacks]
+    An attacker captures legitimate MQTT messages and re-transmits them to trigger unintended actions (e.g.\ replaying an ``unlock door'' command).
+
+    \item[Packet Injection]
+    Crafting and injecting malicious packets into the network to exploit vulnerabilities in application-layer parsers. This includes patterns like SQL injection attempts or cross-site scripting (XSS) payloads embedded in HTTP traffic.
+\end{description}
+
+\subsubsection*{Device-Level Attacks}
+
+\begin{description}[style=nextline]
+    \item[Firmware Extraction and Reverse Engineering]
+    Physical access to the device allows extraction of firmware via JTAG or UART interfaces, potentially revealing hardcoded credentials or cryptographic keys.
+
+    \item[Botnet Recruitment]
+    Compromised IoT devices are enrolled into botnets (e.g.\ Mirai) and used to launch large-scale DDoS attacks against third-party targets~\cite{antonakakis2017mirai}.
+\end{description}
+
+\subsection{Literature Review (PRISMA)}
+\label{sec:prisma}
+
+A literature review following the PRISMA (Preferred Reporting Items for Systematic Reviews and Meta-Analyses) methodology was conducted to survey existing intrusion detection systems designed for IoT environments.
+
+\subsubsection*{Search Strategy}
+
+Databases searched included IEEE Xplore, ACM Digital Library, and ScienceDirect. The search terms used were: (\emph{``intrusion detection system''} OR \emph{``IDS''}) AND (\emph{``IoT''} OR \emph{``Internet of Things''} OR \emph{``smart home''}). The search was limited to publications from 2018 to 2024.
+
+\subsubsection*{Inclusion Criteria}
+\begin{itemize}
+    \item Peer-reviewed journal articles or conference papers.
+    \item Proposed or implemented an IDS specifically for IoT or smart home environments.
+    \item Written in English.
+\end{itemize}
+
+\subsubsection*{Exclusion Criteria}
+\begin{itemize}
+    \item Survey-only papers without a concrete IDS proposal.
+    \item Papers focusing exclusively on industrial IoT (IIoT) or vehicular networks.
+    \item Duplicate publications.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{PRISMA screening flow.}
+\label{tab:prisma}
+\begin{tabular}{lr}
+\toprule
+\textbf{Stage} & \textbf{Count} \\
+\midrule
+Records identified through database search & $\sim$320 \\
+After removing duplicates                  & $\sim$210 \\
+After title/abstract screening             & $\sim$65 \\
+After full-text assessment                 & 18 \\
+Studies included in final review           & 18 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 18 selected studies were analysed for their detection approach, deployment location, detected attack types, and reported performance metrics.
+
+\subsection{Existing IDSs: Limitations and Capabilities}
+\label{sec:ids_review}
+
+Based on the literature review, the identified IDS solutions can be grouped into three main categories:
+
+\subsubsection*{1. Signature-Based IDSs}
+\begin{itemize}
+    \item \emph{Capabilities:} High detection accuracy for known attack patterns. Low false-positive rate when signatures are well defined. Straightforward to implement and understand.
+    \item \emph{Limitations:} Cannot detect novel or zero-day attacks. Require continuous signature updates. Large signature databases consume memory, which is problematic on constrained devices.
+    \item \emph{Examples:} Snort-based approaches adapted for IoT gateways~\cite{khraisat2019survey}, lightweight rule-matching engines on Raspberry~Pi platforms.
+\end{itemize}
+
+\subsubsection*{2. Anomaly-Based IDSs (Machine Learning)}
+\begin{itemize}
+    \item \emph{Capabilities:} Can detect previously unseen attacks by modelling normal behaviour. Adaptable to different network environments without manual rule creation.
+    \item \emph{Limitations:} High false-positive rates, especially during the training phase. Require substantial computational resources for model training and inference. Difficult to interpret and debug (black-box models). Sensitive to concept drift when normal traffic patterns change over time~\cite{sommer2010outside}.
+    \item \emph{Examples:} Random Forest classifiers on network flow features, autoencoders for anomaly detection, federated learning approaches for distributed IoT networks.
+\end{itemize}
+
+\subsubsection*{3. Hybrid IDSs}
+\begin{itemize}
+    \item \emph{Capabilities:} Combine signature and anomaly detection to achieve broader coverage. Can detect known attacks precisely whilst still flagging anomalous behaviour.
+    \item \emph{Limitations:} Increased complexity and resource consumption. Integration of two detection paradigms introduces design challenges. May still suffer from the individual weaknesses of each approach.
+    \item \emph{Examples:} Systems that use signature matching as a first pass and fall back to statistical analysis for unmatched traffic~\cite{alaiz2019multiclass}.
+\end{itemize}
+
+\subsubsection*{Research Gap Identified}
+
+Most existing solutions either require significant computational resources (making them unsuitable for a Raspberry~Pi gateway) or focus solely on one detection paradigm. Few solutions offer real-time monitoring with a practical web-based dashboard and integrated IoT device control. Additionally, many lack proper alert lifecycle management---tracking when an attack starts, progresses, and ends. Loki~IDS addresses these gaps by combining lightweight behavioural detection with signature matching, deployed directly on the gateway, with full alert lifecycle tracking and an integrated device control interface.
+
+
+% ══════════════════════════════════════════════════════════
+% TASK 2 — TEST ENVIRONMENT ESTABLISHMENT
+% ══════════════════════════════════════════════════════════
+\newpage
+\section{Test Environment Establishment}
+\label{sec:environment}
+
+This section describes the physical and software environment built to develop and evaluate the IDS. The test-bed consists of a Raspberry~Pi~5 acting as a Wi-Fi access point, network gateway, MQTT broker, and API server, with two ESP32 microcontrollers representing typical smart home IoT devices.
+
+\subsection{Hardware Components}
+\label{sec:hardware}
+
+Table~\ref{tab:hardware} lists all hardware used in the test environment.
+
+\begin{table}[H]
+\centering
+\caption{Hardware inventory.}
+\label{tab:hardware}
+\begin{tabular}{llp{6.5cm}}
+\toprule
+\textbf{Component} & \textbf{Model} & \textbf{Role} \\
+\midrule
+Central gateway  & Raspberry Pi 5 (8\,GB) & Access point, router, MQTT broker, IDS host, API server \\
+IoT device 1     & ESP32 DevKit v1        & Entryway security hub (PIR sensor + buzzer + LED) \\
+IoT device 2     & ESP32 DevKit v1        & Smart bulb controller (NeoPixel RGB LED strip) \\
+Network uplink   & MikroTik Router        & Optional internet connectivity via Ethernet \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Network Architecture}
+\label{sec:network}
+
+The Raspberry~Pi creates an isolated Wi-Fi network to which all IoT devices and management clients connect. The Pi's wireless interface (\texttt{wlan0}) is assigned the static IP \texttt{10.0.0.1/24} and acts as the DHCP server for the subnet \texttt{10.0.0.0/24}. An optional Ethernet uplink (\texttt{eth0}) provides internet access through a MikroTik router.
+
+\begin{lstlisting}[frame=none,backgroundcolor=\color{white}]
+                  Internet (optional)
+                       |
+                 [MikroTik Router]
+                       |  eth0
+                [Raspberry Pi AP]
+                 wlan0: 10.0.0.1/24
+               /       |       \
+        [ESP32-1]  [ESP32-2]  [Browser/Attacker]
+        10.0.0.x   10.0.0.x   10.0.0.x
+\end{lstlisting}
+
+\subsubsection*{Raspberry Pi Roles}
+
+The Pi serves four simultaneous roles:
+
+\begin{enumerate}
+    \item \textbf{Wireless Access Point (AP):} Configured using RaspAP (which wraps \texttt{hostapd} and \texttt{dnsmasq}) to broadcast a Wi-Fi network named \texttt{Access-Point}. Legacy \texttt{iptables} is selected via \texttt{update-alternatives} for compatibility with NFQUEUE.
+
+    \item \textbf{Network Gateway / Router:} IP forwarding is enabled (\texttt{sysctl -w net.ipv4.ip\_forward=1}) so that traffic from IoT devices can be routed through the Pi. Selective port forwarding rules route HTTP/HTTPS traffic from \texttt{eth0} to an internal host when needed:
+    \begin{lstlisting}[language=bash,frame=none,backgroundcolor=\color{white}]
+sudo iptables -t nat -A PREROUTING -i eth0 -p tcp \
+     --dport 80 -j DNAT --to-destination 10.0.0.6
+sudo iptables -I FORWARD -i eth0 -o wlan0 -p tcp \
+     --dport 80 -d 10.0.0.6 -j ACCEPT
+    \end{lstlisting}
+
+    \item \textbf{MQTT Broker:} Mosquitto listens on port 1883 and acts as the central message broker for all publish-subscribe communication between ESP32 devices and the dashboard.
+
+    \item \textbf{IoT Hub / API Server:} A FastAPI-based web server runs on port 8080, serving the REST API, the web dashboard, and relaying MQTT commands to devices.
+\end{enumerate}
+
+\subsubsection*{Static IP Configuration}
+
+To prevent \texttt{wlan0} from acquiring an address via DHCP from the upstream router, the Ethernet interface is denied in \texttt{dhcpcd.conf}:
+
+\begin{lstlisting}[language=bash,frame=none,backgroundcolor=\color{white}]
+# /etc/dhcpcd.conf
+denyinterfaces eth0
+
+# systemd-networkd (alternative)
+[Match]
+Name=wlan0
+
+[Network]
+Address=10.0.0.1/24
+DHCP=no
+IPForward=yes
+\end{lstlisting}
+
+\subsection{IoT Device Selection and Functionality}
+\label{sec:devices}
+
+Based on the available hardware (two ESP32 modules with sensor kits), we designed two IoT devices that represent common smart home components:
+
+\subsubsection*{ESP32-1: Entryway Security Hub (Motion Sensor + Alarm)}
+\begin{itemize}
+    \item \textbf{Sensors/Actuators:} PIR motion sensor (GPIO~15), piezo buzzer (GPIO~3), status LED (GPIO~2).
+    \item \textbf{Functionality:} Continuously monitors for motion via a polling loop. When motion is detected, the device publishes a JSON alert over MQTT to \texttt{esp32/sensor1/status} and triggers the buzzer with a two-tone alarm pattern. The alarm automatically resets after 5~seconds of inactivity. Additionally, upon detecting motion, ESP32-1 sends a command to ESP32-2 to turn on the RGB LEDs at maximum brightness, demonstrating inter-device coordination. All components (alarm, buzzer, LED) can be independently controlled from the web dashboard via MQTT commands.
+    \item \textbf{Dashboard commands:} \texttt{alarm\_control} (enable/disable/test), \texttt{buzzer\_control} (on/off/beep with configurable duration), \texttt{led\_control} (on/off/auto).
+    \item \textbf{Use case:} Simulates a smart home entryway sensor that detects intruders and raises an audible alarm.
+\end{itemize}
+
+\subsubsection*{ESP32-2: Smart Bulb Controller (RGB LED)}
+\begin{itemize}
+    \item \textbf{Sensors/Actuators:} NeoPixel RGB LED strip (4~LEDs on GPIO~15) driven by the \texttt{Adafruit\_NeoPixel} library.
+    \item \textbf{Functionality:} Controls an RGB LED strip with on/off switching and brightness adjustment (0--255). Receives \texttt{bulb\_control} commands from the dashboard (or from ESP32-1) via MQTT on the \texttt{rpi/broadcast} topic. Publishes its current state---including heartbeat messages every 30~seconds---to \texttt{esp32/sensor2/status}.
+    \item \textbf{Use case:} Simulates a smart light bulb that can be remotely controlled from the dashboard.
+\end{itemize}
+
+\subsection{Communication Protocol: MQTT}
+\label{sec:mqtt}
+
+All device-to-gateway communication uses the MQTT v3.1.1 publish-subscribe protocol~\cite{banks2014mqtt}. The Mosquitto broker on the Pi mediates all messages. Devices subscribe to \texttt{rpi/broadcast} for commands and publish status on dedicated topics.
+
+\begin{table}[H]
+\centering
+\caption{MQTT topic structure.}
+\label{tab:mqtt_topics}
+\begin{tabular}{llp{5.5cm}}
+\toprule
+\textbf{Topic} & \textbf{Direction} & \textbf{Purpose} \\
+\midrule
+\texttt{rpi/broadcast}         & Pi $\rightarrow$ Devices & Dashboard commands (JSON) \\
+\texttt{esp32/sensor1/status}  & ESP32-1 $\rightarrow$ Pi & Motion events, alarm state, heartbeats \\
+\texttt{esp32/sensor2/status}  & ESP32-2 $\rightarrow$ Pi & Bulb state, heartbeats \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{Message Format Examples}
+
+Command from dashboard to ESP32-1:
+\begin{lstlisting}[language=json]
+{
+  "device": "esp32-1",
+  "command": "alarm_control",
+  "action": "enable"
+}
+\end{lstlisting}
+
+Status message from ESP32-1 to dashboard:
+\begin{lstlisting}[language=json]
+{
+  "device": "esp32-1",
+  "event": "motion_detected",
+  "alarm_enabled": true,
+  "alarm_active": true,
+  "buzzer_on": false,
+  "led_auto_mode": true
+}
+\end{lstlisting}
+
+Command from dashboard to ESP32-2:
+\begin{lstlisting}[language=json]
+{
+  "device": "esp32-2",
+  "command": "bulb_control",
+  "state": "on",
+  "brightness": 200
+}
+\end{lstlisting}
+
+\subsection{ESP32 Firmware}
+\label{sec:firmware}
+
+Both ESP32 devices run firmware written in C using the Arduino framework. The firmware handles Wi-Fi connectivity, MQTT communication (via the \texttt{PubSubClient} library), JSON parsing (via \texttt{ArduinoJson}), and sensor/actuator control. Both devices implement automatic Wi-Fi and MQTT reconnection if the connection drops, and use non-blocking reconnect logic with 5-second retry intervals.
+
+\subsubsection*{ESP32-1 Firmware (\texttt{esp/full-code.ino})}
+\begin{itemize}
+    \item Connects to the Pi's Wi-Fi AP (\texttt{Access-Point}) and establishes an MQTT session with the broker at \texttt{10.0.0.1:1883}.
+    \item Subscribes to \texttt{rpi/broadcast} for receiving commands from the dashboard.
+    \item Reads the PIR sensor on GPIO~15 using a polling loop in \texttt{loop()}.
+    \item On motion detection, publishes a JSON status message and triggers a two-tone buzzer alarm. Simultaneously sends a \texttt{bulb\_control} command to ESP32-2 to turn on the RGB LEDs.
+    \item Supports three command types: \texttt{alarm\_control}, \texttt{buzzer\_control}, and \texttt{led\_control}.
+\end{itemize}
+
+\subsubsection*{ESP32-2 Firmware (\texttt{esp/Final-RGB.ino})}
+\begin{itemize}
+    \item Connects to the same AP and MQTT broker.
+    \item Controls a NeoPixel RGB LED strip (4~LEDs) on GPIO~15 using the \texttt{Adafruit\_NeoPixel} library.
+    \item Responds to \texttt{bulb\_control} commands with on/off states and brightness levels from 0 to 255.
+    \item Sends periodic heartbeat messages (every 30~seconds) to indicate it is online.
+\end{itemize}
+
+\subsection{Web Interface for Device Control}
+\label{sec:webinterface}
+
+The web interface is a single-page dashboard built with HTML, CSS, and vanilla JavaScript (no frameworks). It is served by the FastAPI backend on port 8080 and provides four main views:
+
+\begin{itemize}
+    \item \textbf{Dashboard Tab:} Displays real-time statistics---total alerts, alerts in the last 24~hours, IDS running status, a bar chart of alerts by type (Signature, Behaviour, System), and a list of the top attacking IP addresses.
+    \item \textbf{Alerts Tab:} Lists all alerts with filtering by type, subtype, status, pattern, source IP, and destination IP. Supports pagination and shows the full alert lifecycle (STARTED, ONGOING, ENDED).
+    \item \textbf{Signatures Tab:} Allows creation, editing, deletion, and import (from YAML files) of detection signatures. Each signature has a name, pattern, description, and enabled/disabled status.
+    \item \textbf{IoT Control Tab:} Shows all registered ESP32 devices with their online/offline status (determined by MQTT heartbeats). Provides device-specific controls: alarm enable/disable/test, buzzer on/off/beep, LED on/off/auto for ESP32-1, and bulb on/off with brightness slider for ESP32-2.
+\end{itemize}
+
+The dashboard uses Chart.js for visualisations and connects to a WebSocket endpoint (\texttt{/ws/alerts}) for real-time alert notifications via toast messages.
+
+\subsection{Software Stack}
+\label{sec:software_stack}
+
+Table~\ref{tab:software} summarises the software components used in the test environment.
+
+\begin{table}[H]
+\centering
+\caption{Software stack.}
+\label{tab:software}
+\begin{tabular}{llp{5cm}}
+\toprule
+\textbf{Component} & \textbf{Technology} & \textbf{Purpose} \\
+\midrule
+Operating System    & Raspberry Pi OS (Debian) & Base OS on Pi \\
+Access Point        & RaspAP (hostapd + dnsmasq) & Wi-Fi AP and DHCP \\
+MQTT Broker         & Mosquitto 2.x            & Pub-sub messaging \\
+API Server          & FastAPI + Uvicorn         & REST API and static file serving \\
+Database            & SQLite (WAL mode)         & Alert and signature storage \\
+Packet Interception & iptables + NFQUEUE        & Kernel-level packet capture \\
+Packet Parsing      & Scapy + NetfilterQueue    & Userspace packet analysis \\
+MQTT Client (Pi)    & paho-mqtt 2.x (Python)    & Dashboard $\leftrightarrow$ device bridge \\
+MQTT Client (ESP32) & PubSubClient (C++)        & Device-side MQTT \\
+JSON Parsing (ESP32)& ArduinoJson              & Command parsing on devices \\
+LED Control         & Adafruit NeoPixel         & RGB strip driver on ESP32-2 \\
+Frontend            & HTML + CSS + JS + Chart.js & Web dashboard \\
+Python Environment  & Python 3.13 (venv)        & Virtual environment for all dependencies \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Reproducible Setup Steps}
+\label{sec:env_steps}
+
+\subsubsection*{Prerequisites}
+\begin{itemize}
+    \item Raspberry~Pi 5 with Raspberry~Pi OS (Desktop).
+    \item Two ESP32 DevKit modules with sensor kits.
+    \item Python 3.11+ installed on the Pi.
+    \item Arduino IDE or PlatformIO for ESP32 firmware flashing.
+\end{itemize}
+
+\subsubsection*{Step 1: Configure the Raspberry Pi as an Access Point}
+
+\begin{lstlisting}[language=bash]
+# Install dependencies and RaspAP
+sudo apt update && sudo apt upgrade -y
+sudo apt install iptables -y
+sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+curl -sL https://install.raspap.com | bash
+sudo reboot
+
+# Verify Wi-Fi is unblocked
+rfkill list
+rfkill unblock wifi
+sudo systemctl restart hostapd
+
+# Prevent wlan0 from getting DHCP from upstream router
+sudo nano /etc/dhcpcd.conf
+# Add: denyinterfaces eth0
+
+# Ensure wlan0 has static IP 10.0.0.1/24 after each reboot
+sudo systemctl restart dhcpcd
+\end{lstlisting}
+
+\subsubsection*{Step 2: Install Mosquitto MQTT Broker}
+
+\begin{lstlisting}[language=bash]
+sudo apt install mosquitto mosquitto-clients -y
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+\end{lstlisting}
+
+\subsubsection*{Step 3: Clone the Repository and Install Dependencies}
+
+\begin{lstlisting}[language=bash]
+cd ~
+git clone <repository_url> Loki-IDS
+cd Loki-IDS
+bash setup_venv.sh
+# NetfilterQueue system dependency:
+sudo apt install python3-dev libnetfilter-queue-dev
+\end{lstlisting}
+
+This creates a virtual environment at \texttt{loki\_env/} and installs all Python dependencies (FastAPI, Uvicorn, SQLAlchemy, Scapy, NetfilterQueue, paho-mqtt, etc.).
+
+\subsubsection*{Step 4: Flash ESP32 Firmware}
+
+\begin{enumerate}
+    \item Open Arduino IDE (or PlatformIO).
+    \item Install the ESP32 board package and the following libraries: \texttt{PubSubClient}, \texttt{Adafruit\_NeoPixel}, \texttt{ArduinoJson}.
+    \item Open \texttt{esp/full-code.ino}, update the Wi-Fi SSID and password to match the AP configuration, and flash it to ESP32-1.
+    \item Open \texttt{esp/Final-RGB.ino}, update the Wi-Fi credentials, and flash it to ESP32-2.
+\end{enumerate}
+
+\subsubsection*{Step 5: Start the System}
+
+\begin{lstlisting}[language=bash]
+sudo bash start_loki_system.sh
+\end{lstlisting}
+
+This script starts the API server on port 8080, waits for it to become healthy, sets up iptables NFQUEUE rules, and launches the IDS engine. The dashboard is then accessible at \texttt{http://10.0.0.1:8080}.
+
+\subsubsection*{Step 6: Verify}
+
+\begin{lstlisting}[language=bash]
+curl http://localhost:8080/api/system/health
+curl http://localhost:8080/api/system/status
+mosquitto_sub -t "esp32/+/status" -v
+\end{lstlisting}
+
+
+% ══════════════════════════════════════════════════════════
+% TASK 3 — IMPLEMENTATION OF IDS
+% ══════════════════════════════════════════════════════════
+\newpage
+\section{Implementation of IDS}
+\label{sec:ids}
+
+\subsection{System and Adversary Model}
+\label{sec:models}
+
+\subsubsection*{System Model}
+
+The system consists of a Raspberry~Pi acting as the central gateway for a small smart home network. All IoT traffic---both between devices and between devices and the internet---passes through the Pi. The Pi runs three main services:
+
+\begin{enumerate}
+    \item \textbf{Network services:} Access point (\texttt{hostapd}), DHCP (\texttt{dnsmasq}), routing (iptables with IP forwarding).
+    \item \textbf{MQTT broker:} Mosquitto, handling all publish-subscribe communication between ESP32 devices and the dashboard.
+    \item \textbf{Loki IDS and API server:} The intrusion detection engine and the web interface, both running on the Pi.
+\end{enumerate}
+
+The IDS is positioned inline on the gateway, intercepting packets on both the INPUT chain (traffic destined to the Pi itself) and the FORWARD chain (traffic passing through the Pi between IoT devices and the external network). This placement gives the IDS visibility over all network traffic without requiring any software on the IoT devices themselves.
+
+\subsubsection*{Adversary Model}
+
+We consider an adversary with the following characteristics:
+
+\begin{itemize}
+    \item \textbf{Network access:} The adversary is either connected to the same Wi-Fi network as the IoT devices (insider threat) or is on an adjacent network reachable through the router (external attacker).
+    \item \textbf{Capabilities:} The adversary can send arbitrary packets to any device on the network. They can perform port scans, launch flood-based DoS attacks, and inject malicious payloads into network traffic.
+    \item \textbf{Goals:} The adversary aims to disrupt IoT device operation (availability attacks), discover running services for exploitation (reconnaissance), or inject malicious content into network traffic (integrity attacks).
+    \item \textbf{Limitations:} The adversary does not have physical access to the Raspberry~Pi or ESP32 devices. The adversary cannot compromise the IDS itself (the IDS is trusted). The adversary does not have credentials for the Mosquitto broker (if authentication is enabled).
+\end{itemize}
+
+\subsection{IDS Concept}
+\label{sec:concept}
+
+Loki IDS is a \textbf{hybrid network-based intrusion detection system} that combines behavioural analysis with signature-based pattern matching. It operates directly on the smart home gateway (Raspberry~Pi), intercepting packets using Linux NFQUEUE before they are routed or delivered.
+
+\subsubsection*{Core Design Principles}
+
+\begin{enumerate}
+    \item \textbf{Gateway-level inspection:} By running on the gateway, the IDS can inspect all traffic without requiring agents on the constrained IoT devices. This is critical because ESP32 devices lack the resources to run detection logic.
+
+    \item \textbf{Dual detection approach:}
+    \begin{itemize}
+        \item \emph{Behavioural detection} uses a sliding window combined with an Exponentially Weighted Moving Average (EWMA) rate estimator to detect volumetric anomalies (floods, scans) in real time. Both the packet count within a time window and the smoothed packet rate must exceed their respective thresholds before an alert is raised. This dual-check mechanism reduces false positives.
+        \item \emph{Signature detection} matches packet payloads against a database of known malicious patterns (e.g.\ SQL injection strings, XSS payloads). Signatures are managed through the web interface and can be imported from YAML files.
+    \end{itemize}
+
+    \item \textbf{Alert lifecycle management:} Rather than generating a separate alert for every malicious packet (which would flood the logs during a sustained attack), Loki tracks each attack through three stages: STARTED (first detection), ONGOING (periodic updates with packet count and rate), and ENDED (final summary with total duration and packet statistics).
+
+    \item \textbf{Non-blocking architecture:} The IDS core and the API server run as separate processes. The IDS sends alerts to the API via HTTP POST with a short timeout (0.5\,s), so a slow database write never blocks packet processing.
+\end{enumerate}
+
+\subsection{Implementation}
+\label{sec:implementation}
+
+\subsubsection{Architecture Overview}
+
+\begin{lstlisting}[frame=none,backgroundcolor=\color{white},basicstyle=\ttfamily\footnotesize]
+ +-----------------------------------------------------+
+ |                   Raspberry Pi                       |
+ |                                                      |
+ |  +--------------+       +------------------------+  |
+ |  | iptables     |       | FastAPI Server (:8080) |  |
+ |  | NFQUEUE      |       |  +------------------+  |  |
+ |  |  +--------+  | HTTP  |  | REST API         |  |  |
+ |  |  | IDS    |---------->  | /api/alerts      |  |  |
+ |  |  | Core   |  | POST  |  | /api/signatures  |  |  |
+ |  |  +--------+  |       |  | /api/iot         |  |  |
+ |  |   |          |       |  +------------------+  |  |
+ |  |   | accepts/ |       |  +------------------+  |  |
+ |  |   | drops    |       |  | SQLite DB        |  |  |
+ |  |   v          |       |  | (async, WAL)     |  |  |
+ |  | [Network]    |       |  +------------------+  |  |
+ |  +--------------+       |  +------------------+  |  |
+ |                          |  | MQTT Client      |  |  |
+ |                          |  | (paho-mqtt)      |  |  |
+ |                          |  +--------+---------+  |  |
+ |                          +-----------+------------+  |
+ |                                      |               |
+ |                          +-----------v------------+  |
+ |                          | Mosquitto Broker       |  |
+ |                          | (:1883)                |  |
+ |                          +-----------+------------+  |
+ +-------------------------- -----------+---------------+
+                                        | MQTT
+                            +-----------+------------+
+                            |                        |
+                       [ESP32-1]                [ESP32-2]
+                     Motion Sensor            RGB Controller
+\end{lstlisting}
+
+\subsubsection{Packet Interception}
+
+Packets are intercepted using Linux Netfilter's NFQUEUE mechanism. Two iptables rules redirect traffic to user-space queues:
+
+\begin{itemize}
+    \item \textbf{INPUT chain} (queue 100): Captures traffic destined to the Pi itself (e.g.\ SSH attempts, API requests from attackers).
+    \item \textbf{FORWARD chain} (queue 200): Captures traffic passing through the Pi between IoT devices and the external network.
+\end{itemize}
+
+The \texttt{-{}-queue-bypass} flag ensures that if the IDS process is not running, packets are accepted normally rather than dropped. Localhost traffic is excluded from inspection to avoid interfering with internal API communication. Each queue is processed by a dedicated thread in \texttt{nfqueue\_app.py}, ensuring that INPUT and FORWARD traffic are handled concurrently.
+
+\subsubsection{Packet Parsing}
+
+The \texttt{packet\_parser.py} module uses Scapy to extract structured information from raw packets: source and destination IP addresses, source and destination ports (TCP/UDP), TCP flags (SYN, ACK, RST, FIN), protocol type (TCP, UDP, ICMP), raw timestamp, and payload length. This information is returned as a dictionary and passed to the detection engines.
+
+\subsubsection{Behavioural Detection Engine}
+
+The \texttt{detectore\_engine.py} module implements the behavioural analysis component. It consists of two classes:
+
+\paragraph{EWMARateEstimator.} Computes a smoothed packet rate using the EWMA formula:
+
+\begin{equation}
+    r_{\text{ewma}} = \alpha \cdot r_{\text{instant}} + (1 - \alpha) \cdot r_{\text{ewma}}
+\label{eq:ewma}
+\end{equation}
+
+where $r_{\text{instant}} = 1 / \Delta t$ (the reciprocal of the inter-packet arrival time) and $\alpha = 0.3$ balances reactivity against smoothness. This gives a continuous estimate of the current packets-per-second rate without requiring fixed counting windows.
+
+\paragraph{Adaptive Baseline Learning.} Rather than relying on fixed thresholds, each network flow learns its own baseline ``normal'' rate using a slow-moving EWMA:
+
+\begin{equation}
+    r_{\text{baseline}} = \alpha_b \cdot r_{\text{instant}} + (1 - \alpha_b) \cdot r_{\text{baseline}}
+\end{equation}
+\begin{equation}
+    T_{\text{adaptive}} = \max\!\left(r_{\text{baseline}} \times M,\; T_{\text{floor}}\right)
+\end{equation}
+
+where $\alpha_b = 0.05$ ensures the baseline moves slowly, $M = 5.0$ is the multiplier, and $T_{\text{floor}}$ is a protocol-specific minimum floor value. This eliminates the need to manually tune thresholds for each network environment. Importantly, the baseline \textbf{only updates when the current rate is below the adaptive threshold}, preventing attackers from poisoning the baseline with sustained high-rate traffic.
+
+\paragraph{PortScanningDetector.} Maintains per-flow state using sliding time windows. For each detection type, it tracks packet history in a deque and evicts entries older than the window size. Detection is triggered only when \textbf{both} the sliding window count \textbf{and} the EWMA rate exceed their respective thresholds:
+
+\begin{table}[H]
+\centering
+\caption{Detection thresholds for each attack type.}
+\label{tab:thresholds}
+\begin{tabular}{llll}
+\toprule
+\textbf{Attack Type} & \textbf{Window (s)} & \textbf{Count Threshold} & \textbf{EWMA Threshold (pps)} \\
+\midrule
+Port Scan   & 5 & 20 unique ports & N/A (count only) \\
+TCP Flood   & 2 & 200 packets     & baseline $\times$ 5 (floor: 100) \\
+UDP Flood   & 2 & 300 packets     & baseline $\times$ 5 (floor: 150) \\
+ICMP Flood  & 2 & 100 packets     & baseline $\times$ 5 (floor: 50) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Port scan detection tracks the number of \emph{unique destination ports} contacted by a given (source IP, destination IP) pair within the time window. TCP flood detection filters for SYN packets without the ACK flag set, avoiding false positives from legitimate traffic.
+
+\subsubsection{Signature Detection Engine}
+
+The \texttt{signature\_engine.py} module loads enabled signatures from the API at startup and performs byte-string matching against packet payloads. For each packet with a Raw (payload) layer, the engine iterates through all loaded signatures and checks whether the pattern bytes are present in the payload.
+
+Signatures are managed through the web interface and stored in the SQLite database. Each signature has a name, a pattern string, a description, and an enabled flag. Example signatures include \texttt{UNION SELECT} (SQL injection), \texttt{<script>} (XSS), \texttt{../} (directory traversal), and \texttt{; /bin/} (command injection). Signatures can be dynamically added, edited, deleted, enabled, or disabled through the web dashboard without restarting the IDS. Bulk import from YAML files is also supported.
+
+\subsubsection{Alert Logging and Lifecycle}
+
+The \texttt{logger.py} module implements the \texttt{LokiLogger} class, which handles alert aggregation and lifecycle tracking:
+
+\begin{enumerate}
+    \item \textbf{New alert (STARTED):} When an attack is first detected, a STARTED alert is logged to both the console, a JSONL log file, and the API.
+
+    \item \textbf{Ongoing alert (ONGOING):} Subsequent packets matching the same attack are tracked internally. Every 5~seconds (configurable), an ONGOING update is logged with the current packet count, duration, and attack rate. A maximum of 3 ONGOING updates are logged per attack to prevent log flooding.
+
+    \item \textbf{Ended alert (ENDED):} A background check runs every 2~seconds. If no matching packets have been seen for 10~seconds (the cooldown period), the attack is considered ended. A final ENDED alert is logged with total duration, total packets, average packets-per-second, and first/last-seen timestamps.
+\end{enumerate}
+
+Alerts are keyed by (type, message, source IP, destination IP, destination port). For port scans, the key omits the port since scans target multiple ports by definition. All alerts are sent to the API server via HTTP POST (using \texttt{db\_integration.py}), which stores them in the SQLite database.
+
+\subsubsection{API Server}
+
+The API server is built with FastAPI and serves both the REST API and the static web dashboard.
+
+\begin{table}[H]
+\centering
+\caption{Key API endpoints.}
+\label{tab:endpoints}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+GET    & \texttt{/api/alerts}                     & List alerts (filtered, paginated) \\
+POST   & \texttt{/api/alerts}                     & Create alert (from IDS core) \\
+GET    & \texttt{/api/signatures}                 & List signatures \\
+POST   & \texttt{/api/signatures}                 & Create signature \\
+PUT    & \texttt{/api/signatures/\{id\}}          & Update signature \\
+DELETE & \texttt{/api/signatures/\{id\}}          & Delete signature \\
+POST   & \texttt{/api/signatures/reload}          & Import from YAML \\
+GET    & \texttt{/api/stats}                      & Aggregated statistics \\
+GET    & \texttt{/api/system/health}              & Health check \\
+GET    & \texttt{/api/system/status}              & IDS running status \\
+GET    & \texttt{/api/iot/devices}                & List IoT devices \\
+POST   & \texttt{/api/iot/devices/\{id\}/alarm}   & Control alarm (ESP32-1) \\
+POST   & \texttt{/api/iot/devices/\{id\}/bulb}    & Control bulb (ESP32-2) \\
+WS     & \texttt{/ws/alerts}                      & Real-time alert streaming \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The database uses SQLite with WAL (Write-Ahead Logging) mode enabled for concurrent read/write access. The async engine (via \texttt{aiosqlite}) ensures that database operations do not block the event loop.
+
+\subsubsection{Project Structure}
+
+\begin{lstlisting}[frame=none,backgroundcolor=\color{white},basicstyle=\ttfamily\footnotesize]
+Loki-IDS/
++-- Core/loki/                    # IDS Engine and API Server
+|   +-- nfqueue_app.py            # Main packet processing loop
+|   +-- packet_parser.py          # Scapy-based packet extraction
+|   +-- detectore_engine.py       # Behavioural detection (EWMA)
+|   +-- signature_engine.py       # Pattern-based payload matching
+|   +-- logger.py                 # Alert lifecycle management
+|   +-- db_integration.py         # HTTP client for API
+|   +-- api/
+|       +-- main.py               # FastAPI application
+|       +-- models/               # SQLAlchemy models, schemas, CRUD
+|       +-- routes/               # API route handlers
+|       +-- iot/                  # MQTT client (paho-mqtt 2.x)
++-- Web-Interface/static/         # Frontend (HTML, JS, CSS)
++-- esp/                          # ESP32 firmware (.ino)
++-- Scripts/                      # iptables setup/teardown
++-- start_loki_system.sh          # Full system startup
++-- run_loki.sh                   # IDS-only startup
++-- setup_venv.sh                 # Virtual environment setup
++-- requirements.txt              # Python dependencies
+\end{lstlisting}
+
+\subsection{Testing}
+\label{sec:testing}
+
+The IDS was tested against the following attack scenarios, all executed from a machine connected to the Pi's Wi-Fi network.
+
+\subsubsection*{1. Port Scan Detection}
+
+\begin{lstlisting}[language=bash]
+nmap -sS 10.0.0.1
+\end{lstlisting}
+
+\textbf{Result:} Loki detected the scan within 2~seconds. The dashboard showed a BEHAVIOR alert with subtype PORT\_SCAN, correctly identifying the source IP and listing the scanned ports. The alert lifecycle progressed from STARTED through ONGOING to ENDED.
+
+\subsubsection*{2. TCP SYN Flood}
+
+\begin{lstlisting}[language=bash]
+sudo hping3 -S --flood -p 80 10.0.0.1
+\end{lstlisting}
+
+\textbf{Result:} Alert raised after the EWMA rate exceeded 100\,pps and the sliding window count exceeded 200. ONGOING updates showed the attack rate climbing to several thousand packets per second. The ENDED alert reported the total packet count and duration.
+
+\subsubsection*{3. UDP Flood}
+
+\begin{lstlisting}[language=bash]
+sudo hping3 --udp --flood -p 53 10.0.0.1
+\end{lstlisting}
+
+\textbf{Result:} UDP\_FLOOD alert raised with correct thresholds. The dual-check mechanism prevented false positives from normal DNS traffic.
+
+\subsubsection*{4. ICMP Flood}
+
+\begin{lstlisting}[language=bash]
+sudo hping3 --icmp --flood 10.0.0.1
+\end{lstlisting}
+
+\textbf{Result:} ICMP\_FLOOD alert raised correctly. The EWMA threshold of 50\,pps was reached quickly during the flood.
+
+\subsubsection*{5. Signature Detection}
+
+\begin{lstlisting}[language=bash]
+curl "http://10.0.0.1:8080/test?id=1 UNION SELECT * FROM users"
+\end{lstlisting}
+
+\textbf{Result:} SIGNATURE alert with the matching pattern ``UNION SELECT'' displayed in the dashboard. The source IP and matched rule name were correctly recorded.
+
+\subsubsection*{6. Normal Traffic (False Positive Test)}
+
+Regular web browsing, MQTT communication between ESP32 devices, and SSH sessions were tested to verify they did not trigger alerts. No false positives were observed during normal operation.
+
+\subsection{Reproducible Setup Steps}
+\label{sec:ids_steps}
+
+\subsubsection*{Prerequisites}
+\begin{itemize}
+    \item Raspberry~Pi configured as AP (see Section~\ref{sec:env_steps}).
+    \item ESP32 devices flashed and connected.
+    \item Python virtual environment created (\texttt{bash setup\_venv.sh}).
+\end{itemize}
+
+\subsubsection*{Step 1: Start the Complete System}
+
+\begin{lstlisting}[language=bash]
+cd ~/Loki-IDS
+sudo bash start_loki_system.sh
+\end{lstlisting}
+
+This starts both the API server and the IDS core. The script launches the FastAPI server on port 8080, waits until the health endpoint responds, sets up iptables NFQUEUE rules, and starts the packet processing engine.
+
+\subsubsection*{Step 2: Access the Dashboard}
+
+Open a browser on any device connected to the Pi's Wi-Fi and navigate to \texttt{http://10.0.0.1:8080}.
+
+\subsubsection*{Step 3: Add Signatures (Optional)}
+
+Navigate to the Signatures tab and either add signatures manually or import from a YAML file:
+
+\begin{lstlisting}
+- name: SQL Injection
+  pattern: "UNION SELECT"
+  description: Detects SQL injection attempts
+
+- name: XSS Attack
+  pattern: "<script>"
+  description: Detects cross-site scripting payloads
+\end{lstlisting}
+
+\subsubsection*{Step 4: Verify IoT Devices}
+
+On the IoT Control tab, check that both ESP32 devices show as ``Online''. Test the controls---toggle the alarm on ESP32-1 and adjust the brightness on ESP32-2.
+
+\subsubsection*{Step 5: Stop the System}
+
+Press \texttt{Ctrl+C} in the terminal. The cleanup handler automatically removes all iptables NFQUEUE rules, stops the API server, and disconnects the MQTT client.
+
+
+% ══════════════════════════════════════════════════════════
+% REFERENCES
+% ══════════════════════════════════════════════════════════
+\newpage
+\begin{thebibliography}{13}
+
+\bibitem{atzori2010iot}
+L.~Atzori, A.~Iera, and G.~Morabito,
+``The Internet of Things: A survey,''
+\emph{Computer Networks}, vol.~54, no.~15, pp.~2787--2805, 2010.
+
+\bibitem{alfuqaha2015iot}
+A.~Al-Fuqaha, M.~Guizani, M.~Mohammadi, M.~Aledhari, and M.~Ayyash,
+``Internet of Things: A survey on enabling technologies, protocols, and applications,''
+\emph{IEEE Communications Surveys \& Tutorials}, vol.~17, no.~4, pp.~2347--2376, 2015.
+
+\bibitem{khan2012future}
+R.~Khan, S.~U.~Khan, R.~Zaheer, and S.~Khan,
+``Future Internet: The Internet of Things architecture, possible applications and key challenges,''
+in \emph{Proc.\ 10th International Conference on Frontiers of Information Technology}, 2012, pp.~257--260.
+
+\bibitem{wu2010architecture}
+M.~Wu, T.-J.~Lu, F.-Y.~Ling, J.~Sun, and H.-Y.~Du,
+``Research on the architecture of Internet of Things,''
+in \emph{Proc.\ 3rd International Conference on Advanced Computer Theory and Engineering}, 2010, vol.~5, pp.~484--487.
+
+\bibitem{banks2014mqtt}
+A.~Banks and R.~Gupta,
+``MQTT Version 3.1.1,''
+OASIS Standard, 2014.
+
+\bibitem{owasp2018iot}
+OWASP,
+``OWASP Internet of Things Top 10,''
+2018.
+[Online]. Available: \url{https://owasp.org/www-project-internet-of-things/}
+
+\bibitem{bertino2017botnets}
+E.~Bertino and N.~Islam,
+``Botnets and Internet of Things Security,''
+\emph{Computer}, vol.~50, no.~2, pp.~76--79, 2017.
+
+\bibitem{ferrag2020deep}
+M.~A.~Ferrag, L.~Maglaras, S.~Moschoyiannis, and H.~Janicke,
+``Deep learning for cyber security intrusion detection: Approaches, datasets, and comparative study,''
+\emph{Journal of Information Security and Applications}, vol.~50, p.~102419, 2020.
+
+\bibitem{neshenko2019demystifying}
+N.~Neshenko, E.~Bou-Harb, J.~Crichigno, G.~Kaddoum, and N.~Ghani,
+``Demystifying IoT security: An exhaustive survey on IoT vulnerabilities and a first empirical look on Internet-scale IoT exploitations,''
+\emph{IEEE Communications Surveys \& Tutorials}, vol.~21, no.~3, pp.~2702--2733, 2019.
+
+\bibitem{antonakakis2017mirai}
+M.~Antonakakis \emph{et~al.},
+``Understanding the Mirai Botnet,''
+in \emph{Proc.\ 26th USENIX Security Symposium}, 2017, pp.~1093--1110.
+
+\bibitem{khraisat2019survey}
+A.~Khraisat, I.~Gondal, P.~Vamplew, and J.~Kamruzzaman,
+``Survey of intrusion detection systems: techniques, datasets and challenges,''
+\emph{Cybersecurity}, vol.~2, no.~1, pp.~1--22, 2019.
+
+\bibitem{sommer2010outside}
+R.~Sommer and V.~Paxson,
+``Outside the closed world: On using machine learning for network intrusion detection,''
+in \emph{Proc.\ IEEE Symposium on Security and Privacy}, 2010, pp.~305--316.
+
+\bibitem{alaiz2019multiclass}
+H.~Alaiz-Moreton \emph{et~al.},
+``Multiclass classification procedure for detecting attacks on MQTT-IoT protocol,''
+\emph{Complexity}, vol.~2019, pp.~1--11, 2019.
+
+\end{thebibliography}
+
+\end{document}
