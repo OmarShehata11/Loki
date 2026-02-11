@@ -1,57 +1,50 @@
 /*
- * COMBINED FIRMWARE FOR: ESP32-1 (Entryway Hub)
+ * ESP32-2: RGB LED Controller (Bulb Controller)
+ * Controls RGB LED strip based on commands from Loki IDS Dashboard
+ *
  * Features:
- *  - WiFi connection (your original logic)
- *  - MQTT connection + reconnect logic
+ *  - WiFi connection
+ *  - MQTT connection + auto-reconnect
  *  - Subscribes to: rpi/broadcast
- *  - Publishes to: esp32/sensor1
- *  - NeoPixel animation on GPIO 15
+ *  - Publishes to: esp32/sensor2/status
+ *  - RGB LED strip control (GPIO 15)
+ *  - Responds to dashboard commands (bulb_control)
  */
 
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Adafruit_NeoPixel.h>
+#include <ArduinoJson.h>
 
-// --- START: CONFIGURE YOUR SETTINGS ---
-const char* WIFI_SSID = "Mikro";
-const char* WIFI_PASS = "123456789";
-const char* MQTT_BROKER_IP = "172.16.10.252";
+// --- WiFi and MQTT Configuration ---
+const char* WIFI_SSID = "Access-Point";      // TODO: Update with your WiFi SSID
+const char* WIFI_PASS = "1234Az@1";    // TODO: Update with your WiFi password
+const char* MQTT_BROKER_IP = "10.0.0.1"; // Raspberry Pi Access Point IP
 const int   MQTT_PORT = 1883;
-const char* MQTT_CLIENT_ID = "esp32-entryway";
-// --- END: CONFIGURE YOUR SETTINGS ---
+const char* MQTT_CLIENT_ID = "esp32-2";           // Device ID
+const char* DEVICE_ID = "esp32-2";                // Must match dashboard
+
+// --- LED Strip Configuration ---
+#define LED_PIN 15
+#define NUM_LEDS 4
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 // --- Global Variables ---
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 long lastReconnectAttempt = 0;
-long lastMsg = 0;
+long lastHeartbeat = 0;
 
-// ===============================
-//   MODIFICATION #1  
-//   Merged your LED strip setup
-// ===============================
-#define PIN 15
-#define NUM_LEDS 4
-Adafruit_NeoPixel strip(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
-int brightness = 100;
+// LED State
+bool bulbOn = false;
+int currentBrightness = 100;
 
-uint32_t colors[] = {
-  strip.Color(brightness, 0, 0),
-  strip.Color(0, brightness, 0),
-  strip.Color(0, 0, brightness),
-  strip.Color(brightness, brightness, brightness),
-  strip.Color(0, 0, 0)
-};
-
-
-// ===============================
-//   Wi-Fi setup (UNCHANGED)
-// ===============================
+// --- WiFi Setup ---
 void setup_wifi() {
   delay(10);
   Serial.println();
-  Serial.print("Connecting to ");
+  Serial.print("Connecting to WiFi: ");
   Serial.println(WIFI_SSID);
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -61,17 +54,12 @@ void setup_wifi() {
     Serial.print(".");
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+  Serial.println("\n[✓] WiFi connected");
+  Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
 
-
-// ===============================
-//   MODIFICATION #2
-//   Single unified MQTT reconnect function
-// ===============================
+// --- MQTT Reconnect ---
 boolean reconnect_mqtt() {
   Serial.print("Attempting MQTT connection...");
 
@@ -81,92 +69,180 @@ boolean reconnect_mqtt() {
   }
 
   if (client.connect(MQTT_CLIENT_ID)) {
-    Serial.println("MQTT Connected");
+    Serial.println("[✓] MQTT Connected");
 
-    // SUBSCRIBE HERE
+    // Subscribe to broadcast channel
     client.subscribe("rpi/broadcast");
+    Serial.println("[✓] Subscribed to: rpi/broadcast");
+
+    // Publish online status
+    publishStatus("online");
   }
   else {
-    Serial.print("failed, rc=");
+    Serial.print("[✗] Failed, rc=");
     Serial.print(client.state());
-    Serial.println(" trying again in 2 seconds");
+    Serial.println(" trying again in 5 seconds");
   }
 
   return client.connected();
 }
 
+// --- Publish Status to Dashboard ---
+void publishStatus(const char* status) {
+  StaticJsonDocument<200> doc;
+  doc["device"] = DEVICE_ID;
+  doc["status"] = status;
+  doc["bulb_state"] = bulbOn ? "on" : "off";
+  doc["brightness"] = currentBrightness;
 
-// ===============================
-//   MQTT CALLBACK
-// ===============================
+  char buffer[200];
+  serializeJson(doc, buffer);
+
+  client.publish("esp32/sensor2/status", buffer);
+  Serial.print("[→] Status published: ");
+  Serial.println(buffer);
+}
+
+// --- Set LED Color ---
+void setLEDColor(uint8_t r, uint8_t g, uint8_t b) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    strip.setPixelColor(i, strip.Color(r, g, b));
+  }
+  strip.show();
+}
+
+// --- Control Bulb ---
+void controlBulb(bool state, int brightness) {
+  bulbOn = state;
+  currentBrightness = constrain(brightness, 0, 255);
+
+  Serial.print("[Bulb] State: ");
+  Serial.print(bulbOn ? "ON" : "OFF");
+  Serial.print(", Brightness: ");
+  Serial.println(currentBrightness);
+
+  if (bulbOn) {
+    // Calculate RGB based on brightness (white light)
+    setLEDColor(currentBrightness, currentBrightness, currentBrightness);
+  } else {
+    // Turn off
+    setLEDColor(0, 0, 0);
+  }
+
+  // Publish confirmation
+  publishStatus("command_executed");
+}
+
+// --- MQTT Callback (Handle Dashboard Commands) ---
 void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(" | Data: ");
+  Serial.println("\n========== MQTT MESSAGE RECEIVED ==========");
+  Serial.print("[←] Topic: ");
+  Serial.println(topic);
+  Serial.print("[←] Length: ");
+  Serial.println(length);
+  
+  // Print raw message for debugging
+  Serial.print("[←] Raw message: ");
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+  }
+  Serial.println();
+  Serial.println("============================================");
 
-  String msg;
-  for (int i = 0; i < length; i++) msg += (char)message[i];
+  // Parse JSON message
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, message, length);
 
-  Serial.println(msg);
+  if (error) {
+    Serial.print("[✗] JSON parse failed: ");
+    Serial.println(error.c_str());
+    return;
+  }
 
-  // Example reaction:
-  if (String(topic) == "rpi/broadcast") {
-    if (msg == "10") {
-      Serial.println("Action received → Blink LED or something");
+  // Check if message is for this device
+  const char* targetDevice = doc["device"];
+  Serial.print("[i] Target device: ");
+  Serial.println(targetDevice ? targetDevice : "NULL");
+  Serial.print("[i] This device: ");
+  Serial.println(DEVICE_ID);
+  
+  if (!targetDevice || strcmp(targetDevice, DEVICE_ID) != 0) {
+    Serial.println("[i] Message not for this device, ignoring");
+    return;
+  }
+
+  // Get command
+  const char* command = doc["command"];
+  if (!command) {
+    Serial.println("[✗] No command field in message");
+    return;
+  }
+
+  Serial.print("[!] Executing command: ");
+  Serial.println(command);
+
+  // Handle bulb_control command
+  if (strcmp(command, "bulb_control") == 0) {
+    const char* state = doc["state"];           // "on" or "off"
+    int brightness = doc["brightness"] | 255;   // Default 255
+
+    if (state) {
+      bool turnOn = (strcmp(state, "on") == 0);
+      controlBulb(turnOn, brightness);
+    } else {
+      Serial.println("[✗] No state field in bulb_control command");
     }
+  }
+  else {
+    Serial.print("[?] Unknown command: ");
+    Serial.println(command);
   }
 }
 
-
-// ===============================
-//   SETUP
-// ===============================
+// --- Setup ---
 void setup() {
   Serial.begin(115200);
+  Serial.println("\n======================================");
+  Serial.println("  ESP32-2: RGB LED Controller");
+  Serial.println("======================================");
 
-  // LED strip
+  // Initialize LED strip
   strip.begin();
-  strip.show();
+  strip.show(); // Initialize all pixels to 'off'
+  Serial.println("[✓] LED Strip initialized");
 
+  // Connect to WiFi
   setup_wifi();
 
+  // Setup MQTT
   client.setServer(MQTT_BROKER_IP, MQTT_PORT);
   client.setCallback(callback);
+
+  Serial.println("[✓] System ready");
 }
 
-
-// ===============================
-//   MAIN LOOP
-// ===============================
+// --- Main Loop ---
 void loop() {
-  
+
   // MQTT reconnect logic
   if (!client.connected()) {
     long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
-      if (reconnect_mqtt()) lastReconnectAttempt = 0;
+      Serial.println("[!] MQTT disconnected, attempting reconnect...");
+      if (reconnect_mqtt()) {
+        lastReconnectAttempt = 0;
+      }
     }
   } else {
-    client.loop();
+    client.loop();  // Process incoming MQTT messages
   }
 
-  // Animation (NON-BLOCKING)
-  static unsigned long lastColorChange = 0;
-  static int colorIndex = 0;
-
-  if (millis() - lastColorChange > 500) {
-    for (int j = 0; j < NUM_LEDS; j++) {
-      strip.setPixelColor(j, colors[colorIndex]);
-    }
-    strip.show();
-    colorIndex = (colorIndex + 1) % 5;
-    lastColorChange = millis();
+  // Publish heartbeat every 30 seconds
+  if (millis() - lastHeartbeat > 30000) {
+    lastHeartbeat = millis();
+    publishStatus("heartbeat");
   }
 
-  // Publish every 4 seconds
-  if (millis() - lastMsg > 4000) {
-    lastMsg = millis();
-    client.publish("esp32/sensor1", "88");
-  }
+  delay(10); // Small delay for stability
 }

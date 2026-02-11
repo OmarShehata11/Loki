@@ -141,7 +141,7 @@ class LokiLogger:
         
         self._write_to_file(record)
         
-        # Write to database if integration is enabled
+        # Send to Web Interface API if integration is enabled
         if db_integration.enabled:
             db_integration.insert_alert(record)
         
@@ -231,7 +231,7 @@ class LokiLogger:
         
         self._write_to_file(record)
         
-        # Write to database if integration is enabled
+        # Send to Web Interface API if integration is enabled
         if db_integration.enabled:
             db_integration.insert_alert(record)
         
@@ -296,7 +296,7 @@ class LokiLogger:
         
         self._write_to_file(record)
         
-        # Write to database if integration is enabled
+        # Send to Web Interface API if integration is enabled
         if db_integration.enabled:
             db_integration.insert_alert(record)
     
@@ -343,7 +343,7 @@ class LokiLogger:
         
         self._write_to_file(record)
         
-        # Write to database if integration is enabled
+        # Send to Web Interface API if integration is enabled
         if db_integration.enabled:
             db_integration.insert_alert(record)
 

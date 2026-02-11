@@ -110,7 +110,7 @@ echo "======================================================${NC}"
 echo ""
 
 cd "$IDS_DIR"
-python3 nfqueue_app.py
+"$VENV_PATH/bin/python3" nfqueue_app.py
 
 # If nfqueue_app.py exits on its own (not via Ctrl+C), still clean up
 cleanup

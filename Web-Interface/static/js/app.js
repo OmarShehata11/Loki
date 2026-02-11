@@ -951,7 +951,7 @@ function displayIoTDevices(devices) {
         }
         
         if (deviceType === 'rgb_controller' || device.device_id === 'esp32-2') {
-            // Bulb Control (changed from RGB to regular bulb)
+            // Bulb Control - simple ON/OFF matching ESP32-2 firmware
             controls = `
                 <div class="iot-control-section">
                     <h4>Bulb Control</h4>
@@ -961,59 +961,18 @@ function displayIoTDevices(devices) {
                             Bulb: ${bulbOn ? 'ON' : 'OFF'}
                         </span>
                     </div>
-                    <div class="iot-button-group" style="margin-bottom: 20px;">
+                    <div class="iot-button-group">
                         <button onclick="controlBulb('${device.device_id}', 'on')" class="iot-btn iot-btn-success">Turn ON</button>
                         <button onclick="controlBulb('${device.device_id}', 'off')" class="iot-btn iot-btn-danger">Turn OFF</button>
-                    </div>
-                    <div class="iot-brightness-control" style="padding: 20px; background: #0f1419; border-radius: 8px; border: 1px solid #2a2f35;">
-                        <label style="color: #888; font-size: 0.9em; display: block; margin-bottom: 10px;">Brightness:</label>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <input type="range" id="bulbBrightness_${device.device_id}" min="0" max="255" value="${currentBrightness}" 
-                                   class="iot-brightness-slider"
-                                   oninput="document.getElementById('bulbBrightnessValue_${device.device_id}').textContent = this.value">
-                            <span class="iot-brightness-value" id="bulbBrightnessValue_${device.device_id}">${currentBrightness}</span>
-                            <button onclick="controlBulbBrightness('${device.device_id}')" class="iot-btn iot-btn-primary" style="min-width: 100px;">Set Brightness</button>
-                        </div>
                     </div>
                 </div>
             `;
         } else if (deviceType === 'motion_sensor' || device.device_id === 'esp32-1') {
-            // Motion Sensor, Alarm & Buzzer Control
+            // Alarm Test & LED Control (matching ESP32-1 firmware)
             controls = `
                 <div class="iot-control-section">
-                    <h4>Motion Sensor Status</h4>
-                    <div class="iot-status-display">
-                        <div class="iot-status-indicator ${motionDetected ? 'detected' : 'inactive'}"></div>
-                        <span class="iot-status-text ${motionDetected ? 'detected' : 'inactive'}">
-                            Motion: ${motionDetected ? 'DETECTED' : 'No Motion'}
-                        </span>
-                    </div>
-                    
-                    <h4>Buzzer Control</h4>
-                    <div class="iot-status-display" style="margin-bottom: 15px;">
-                        <div class="iot-status-indicator ${buzzerOn ? 'active' : 'inactive'}"></div>
-                        <span class="iot-status-text ${buzzerOn ? 'active' : 'inactive'}">
-                            Buzzer: ${buzzerOn ? 'ON' : 'OFF'}
-                        </span>
-                    </div>
-                    <div class="iot-button-group">
-                        <button onclick="controlBuzzer('${device.device_id}', 'on')" class="iot-btn iot-btn-success">Buzzer ON</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'off')" class="iot-btn iot-btn-danger">Buzzer OFF</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep')" class="iot-btn iot-btn-secondary">Beep (1s)</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 2000)" class="iot-btn iot-btn-secondary">Beep (2s)</button>
-                        <button onclick="controlBuzzer('${device.device_id}', 'beep', 500)" class="iot-btn iot-btn-secondary">Beep (0.5s)</button>
-                    </div>
-                    
-                    <h4>Alarm System Control</h4>
-                    <div class="iot-status-display" style="margin-bottom: 15px;">
-                        <div class="iot-status-indicator ${alarmEnabled ? 'active' : 'inactive'}"></div>
-                        <span class="iot-status-text ${alarmEnabled ? 'active' : 'inactive'}">
-                            Alarm: ${alarmEnabled ? 'ENABLED' : 'DISABLED'}
-                        </span>
-                    </div>
-                    <div class="iot-button-group">
-                        <button onclick="controlAlarm('${device.device_id}', 'enable')" class="iot-btn iot-btn-success">Enable Alarm</button>
-                        <button onclick="controlAlarm('${device.device_id}', 'disable')" class="iot-btn iot-btn-danger">Disable Alarm</button>
+                    <h4>Alarm</h4>
+                    <div class="iot-button-group" style="margin-bottom: 20px;">
                         <button onclick="controlAlarm('${device.device_id}', 'test')" class="iot-btn iot-btn-primary">Test Alarm</button>
                     </div>
                     
@@ -1033,8 +992,8 @@ function displayIoTDevices(devices) {
             `;
         }
         
-        // Determine online status (if last_seen is recent, consider online)
-        const isOnline = device.last_seen ? (Date.now() - new Date(device.last_seen).getTime()) < 60000 : false;
+        // Use online status from API (tracked via MQTT heartbeats)
+        const isOnline = device.online === true;
         const statusClass = isOnline ? 'online' : 'offline';
         const statusText = isOnline ? 'Online' : 'Offline';
         
@@ -1046,7 +1005,7 @@ function displayIoTDevices(devices) {
                         <p class="iot-device-info">Type: ${device.device_type}</p>
                         <p class="iot-device-info">Device ID: ${device.device_id}</p>
                         ${device.description ? `<p class="iot-device-info">${device.description}</p>` : ''}
-                        ${device.last_seen ? `<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : ''}
+                        ${device.last_seen ? `<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: ${new Date(device.last_seen).toLocaleString()}</p>` : '<p class="iot-device-info" style="font-size: 0.85em; color: #666;">Last seen: Never (waiting for heartbeat)</p>'}
                     </div>
                     <div>
                         <span class="iot-status-badge ${device.enabled ? 'enabled' : 'disabled'}">
@@ -1067,9 +1026,8 @@ async function controlBulb(deviceId, state) {
     console.log(`[Bulb] Control called for device: ${deviceId}, state: ${state}`);
     
     try {
-        // Get current brightness or use default
-        const brightnessInput = document.getElementById(`bulbBrightness_${deviceId}`);
-        const brightness = brightnessInput ? parseInt(brightnessInput.value) : 255;
+        // ON = full brightness (255), OFF = 0
+        const brightness = state === 'on' ? 255 : 0;
         
         const url = `${API_BASE}/iot/devices/${deviceId}/bulb?state=${state}&brightness=${brightness}`;
         console.log(`[Bulb] API URL: ${url}`);
@@ -1250,9 +1208,8 @@ async function checkMQTTStatus() {
 }
 
 async function connectMQTT() {
-    // Try localhost first (if web server is on same machine as MQTT broker)
-    // Then try common Raspberry Pi access point IPs
-    const hosts = ['127.0.0.1', 'localhost', '10.0.0.1'];
+    // Try the Raspberry Pi AP IP first, then localhost
+    const hosts = ['10.0.0.1', '127.0.0.1', 'localhost'];
     let connected = false;
     let lastError = null;
     

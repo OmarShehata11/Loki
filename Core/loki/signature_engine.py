@@ -1,23 +1,15 @@
 # Signature detection engine
-import os
-import sys
+# Now uses API integration instead of direct database access
 
-# Add Web-Interface to path to import database modules
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-web_interface_path = os.path.join(project_root, "Web-Interface")
-if web_interface_path not in sys.path:
-    sys.path.insert(0, web_interface_path)
-
-# Import db_integration from same directory
+# Import API integration client (sends HTTP requests to Web Interface)
 from db_integration import db_integration
 
 
 class SignatureScanning:
     """
-    Database-based signature engine.
-    
-    This class loads signatures from the database.
+    API-based signature engine.
+
+    This class loads signatures from the Web Interface API.
     """
     def __init__(self):
         # the dict will be : RULE_ID -> (description, data, action, rule id)
@@ -27,11 +19,11 @@ class SignatureScanning:
 
     def load_rules(self):
         """
-        Load rules from database.
+        Load rules from Web Interface API.
         Only loads enabled signatures.
         """
         try:
-            # Get enabled signatures from database
+            # Get enabled signatures from API
             signatures = db_integration.get_signatures(enabled_only=True)
             
             # Clear existing rules
@@ -48,18 +40,18 @@ class SignatureScanning:
                 }
                 self.rules.append(rule)
 
-            print(f"[*] Loading of rules from database is done.")
+            print(f"[*] Loading of rules from API is done.")
             print(f"[*] Number of rules loaded is {len(self.rules)}.")
 
         except Exception as e:
-            print(f"[!] ERROR while loading signatures from database: {e}")
+            print(f"[!] ERROR while loading signatures from API: {e}")
             self.rules = []  # Ensure rules list is empty on error
     
     def reload_rules(self):
         """
-        Reload rules from the database.
+        Reload rules from the Web Interface API.
         """
-        print("[*] Reloading signatures from database...")
+        print("[*] Reloading signatures from API...")
         self.load_rules()
         print(f"[*] Reloaded {len(self.rules)} signatures")
         return len(self.rules)

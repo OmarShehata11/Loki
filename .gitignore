@@ -11,10 +11,6 @@ ENV/
 dist/
 build/
 
-# IDS Database
-*.db
-*.db-journal
-
 # IDE
 .vscode/
 .idea/
